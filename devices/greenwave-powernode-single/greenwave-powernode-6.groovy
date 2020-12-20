@@ -1,74 +1,56 @@
-/**
- *  GreenWave PowerNode 6 Zooz Frankenstein VER 2.0
- *  (Models: ZEN20)
+/*****************************************************************************************************************
+ *  Copyright: David Lomas (codersaur), Marcos Boyington (marcosb)
  *
- *  Author: 
- *    Kevin LaFramboise (krlaframboise), Ulices Soriano (getterdone) tweaked for Greenwave
+ *  Name: GreenWave PowerNode (6 outlet) Advanced
  *
- *	Documentation: https://community.smartthings.com/t/release-zooz-power-strip-ver-2-0/138231?u=krlaframboise
- *  also: https://github.com/codersaur/SmartThings/blob/master/devices/greenwave-powernode-single/greenwave-powernode-single.groovy
+ *  Date: 2020-12-19
  *
+ *  Version: 1.0
  *
- *  Changelog:
+ *  Sources: https://github.com/codersaur/SmartThings/tree/master/devices/greenwave-powernode-single
+ *           https://github.com/krlaframboise/SmartThings/blob/master/devicetypes/krlaframboise/zooz-power-strip-ver-2-0.src/zooz-power-strip-ver-2-0.groovy
  *
- *    2.2.2 (12/19/2020)
- *      - Updated configuration porperties to match greenwave powernode instead of zooz
+ *  Author: Marcos B (marcosb)
  *
- *    2.2.1 (03/13/2020)
- *      - Fixed bug with enum settings that was caused by a change ST made in the new mobile app.
+ *  Description: An advanced SmartThings device handler for the GreenWave PowerNode (6 outlet) Z-Wave power outlet.
+ *  Based on code by codersaur & krlaframboise
  *
- *    2.2 (08/25/2019)
- *      - Added new configuration parameters for firmware 2.2.
+ *  For full information, including installation instructions, exmples, and version history, see:
+ *   https://github.com/codersaur/SmartThings/tree/master/devices/greenwave-powernode-single
  *
- *    2.1.0 (11/05/2018)
- *      - Removed USB Child Device
- *      - Display actual outlet names and their power levels.
- *      - Configuration changes for firmware 2.0.
- *
- *    2.0.6 (10/16/2018)
- *      - Added new DTH for USB ports that doesn't display them as switches and works in the new mobile app.  If the new DTH isn't installed it will default to the SmartThings Virtual Switch which also works in the new mobile app.
- *
- *    2.0.5 (10/01/2018)
- *      - Initial Release
- *
- *
- *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
- *  in compliance with the License. You may obtain a copy of the License at:
+ *  License:
+ *   Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ *   in compliance with the License. You may obtain a copy of the License at:
  *
  *      http://www.apache.org/licenses/LICENSE-2.0
  *
- *  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed
- *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
- *  for the specific language governing permissions and limitations under the License.
+ *   Unless required by applicable law or agreed to in writing, software distributed under the License is distributed
+ *   on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
+ *   for the specific language governing permissions and limitations under the License.
  *
- */
+ *****************************************************************************************************************/
 metadata {
-	definition (
-		name: "GreenWave PowerNode 6", 
-		namespace: "getterdone", 
-		author: "Ulices Soriano",
-		vid:"generic-switch-power-energy"
-	) {
-		capability "Actuator"
-		capability "Sensor"
-		capability "Switch"		
-		capability "Outlet"
-		// capability "Acceleration Sensor"
-		capability "Power Meter"
-		capability "Energy Meter"
-		capability "Configuration"
-		capability "Refresh"
-		capability "Health Check"
-		
-		attribute "secondaryStatus", "string"
-		attribute "firmwareVersion", "string"		
-		attribute "lastCheckin", "string"
-		attribute "energyTime", "number"
-		attribute "energyDuration", "string"
-		attribute "powerLow", "number"
-		attribute "powerHigh", "number"
-        
+    definition (name: "GreenWave PowerNode 6 Advanced", namespace: "codersaur", author: "David Lomas") {
+        capability "Actuator"
+        capability "Switch"
+        capability "Sensor"
+        capability "Energy Meter"
+        capability "Power Meter"
+        capability "Polling"
+        capability "Refresh"
+
+        // Custom (Virtual) Capabilities:
+        //capability "Fault"
+        //capability "Logging"
+        //capability "Protection"
+
+        // Standard Attributes:
+        attribute "switch", "enum", ["on", "off"]
+        attribute "power", "number"
+        attribute "energy", "number"
+
         // Custom Attributes:
+		attribute "secondaryStatus", "string"
         attribute "energyLastReset", "string"   // Last time Accumulated Engergy was reset.
         attribute "fault", "string"             // Indicates if the device has any faults. 'clear' if no active faults.
         attribute "localProtectionMode", "enum", ["unprotected","sequence","noControl"] // Physical protection mode.
@@ -92,7 +74,7 @@ metadata {
         command "setRfProtectionMode"       // Set wireless protection mode.
         command "toggleRfProtectionMode"    // Toggle wireless protection mode.
         command "sync"                      // Sync configuration with physical device.
-		command "reset"
+        command "test"                      // Test function.
         
 		(1..6).each {
 			attribute "ch${it}Power", "number"
@@ -102,21 +84,24 @@ metadata {
 			command "ch${it}Off"
 		}
 
+        // Fingerprints:
 	    fingerprint manufacturer: "0099", prod: "0003", model: "0004", deviceJoinName: "GreenWave PowerNode 6"
     }
 
-	simulator { }
-		
-	tiles(scale: 2) {
-		multiAttributeTile(name:"switch", type: "generic", width: 6, height: 4){
-			tileAttribute ("device.switch", key: "PRIMARY_CONTROL") {
-				attributeState "on", label: '${name}', action: "switch.off", icon: "st.switches.switch.on", backgroundColor: "#00a0dc"
-				attributeState "off", label: '${name}', action: "switch.on", icon: "st.switches.switch.off", backgroundColor: "#ffffff"
-			}
+    tiles(scale: 2) {
+        // Multi Tile:
+        multiAttributeTile(name:"switch", type: "generic", width: 6, height: 4, canChangeIcon: true) {
+            tileAttribute ("switch", key: "PRIMARY_CONTROL") {
+                attributeState "on", label:'${name}', action:"off", icon:"st.switches.switch.on", backgroundColor:"#79b821", nextState:"turningOff"
+                attributeState "off", label:'${name}', action:"on", icon:"st.switches.switch.off", backgroundColor:"#ffffff", nextState:"turningOn"
+                attributeState "turningOn", label:'${name}', action:"off", icon:"st.switches.switch.on", backgroundColor:"#79b821", nextState:"turningOff"
+                attributeState "turningOff", label:'${name}', action:"on", icon:"st.switches.switch.off", backgroundColor:"#ffffff", nextState:"turningOn"
+            }
 			tileAttribute ("device.secondaryStatus", key: "SECONDARY_CONTROL") {
 				attributeState "default", label:'${currentValue}'
 			}
-		}
+        }
+
         // Instantaneous Power:
         valueTile("instMode", "dispPower", decoration: "flat", width: 2, height: 1) {
             state "default", label:'Now:', action:"refresh",
@@ -173,122 +158,117 @@ metadata {
             state "default", label:'${currentValue} Fault', action:"resetFault", backgroundColor:"#FF6600", icon: "https://raw.githubusercontent.com/codersaur/SmartThings/master/icons/tile_2x2_warn.png"
             state "clear", label:'${currentValue}', action:"", backgroundColor:"#79b821", icon: "https://raw.githubusercontent.com/codersaur/SmartThings/master/icons/tile_2x2_tick.png"
         }
-		standardTile("configure", "device.configure", width: 2, height: 2) {
-			state "default", label:'Sync', action: "configure", icon:"st.secondary.tools"
-		}
-		valueTile("firmwareVersion", "device.firmwareVersion", decoration:"flat", width:3, height: 1) {
-			state "firmwareVersion", label:'Firmware ${currentValue}'
-		}		
-		valueTile("syncStatus", "device.syncStatus", decoration:"flat", width:3, height: 1) {
-			state "syncStatus", label:'${currentValue}'
-		}
-		
-		valueTile("ch1Name", "device.ch1Name", decoration:"flat", width:4, height: 1) {
-			state "default", label:'${currentValue}'
-		}
-		valueTile("ch1Power", "device.ch1Power", decoration:"flat", width:1, height: 1) {
-			state "default", label:'${currentValue} W'
-		}
-		standardTile("ch1Switch", "device.ch1Switch", width:1, height: 1) {
-			state "on", label:'ON', action:"ch1Off", backgroundColor: "#00a0dc"
-			state "off", label:'OFF', action:"ch1On"
-		}
-		valueTile("ch2Name", "device.ch2Name", decoration:"flat", width:4, height: 1) {
-			state "default", label:'${currentValue}'
-		}
-		valueTile("ch2Power", "device.ch2Power", decoration:"flat", width:1, height: 1) {
-			state "default", label:'${currentValue} W'
-		}
-		standardTile("ch2Switch", "device.ch2Switch", width:1, height: 1) {
-			state "on", label:'ON', action:"ch2Off", backgroundColor: "#00a0dc"
-			state "off", label:'OFF', action:"ch2On"
-		}		
-		valueTile("ch3Name", "device.ch3Name", decoration:"flat", width:4, height: 1) {
-			state "default", label:'${currentValue}'
-		}
-		valueTile("ch3Power", "device.ch3Power", decoration:"flat", width:1, height: 1) {
-			state "default", label:'${currentValue} W'
-		}
-		standardTile("ch3Switch", "device.ch3Switch", width:1, height: 1) {
-			state "on", label:'ON', action:"ch3Off", backgroundColor: "#00a0dc"
-			state "off", label:'OFF', action:"ch3On"
-		}		
-		valueTile("ch4Name", "device.ch4Name", decoration:"flat", width:4, height: 1) {
-			state "default", label:'${currentValue}'
-		}
-		valueTile("ch4Power", "device.ch4Power", decoration:"flat", width:1, height: 1) {
-			state "default", label:'${currentValue} W'
-		}
-		standardTile("ch4Switch", "device.ch4Switch", width:1, height: 1) {
-			state "on", label:'ON', action:"ch4Off", backgroundColor: "#00a0dc"
-			state "off", label:'OFF', action:"ch4On"
-		}		
-		valueTile("ch5Name", "device.ch5Name", decoration:"flat", width:4, height: 1) {
-			state "default", label:'${currentValue}'
-		}
-		valueTile("ch5Power", "device.ch5Power", decoration:"flat", width:1, height: 1) {
-			state "default", label:'${currentValue} W'
-		}
-		standardTile("ch5Switch", "device.ch5Switch", width:1, height: 1) {
-			state "on", label:'ON', action:"ch5Off", backgroundColor: "#00a0dc"
-			state "off", label:'OFF', action:"ch5On"
-		}	   
-          valueTile("ch6Name", "device.ch6Name", decoration:"flat", width:4, height: 1) {
-			state "default", label:'${currentValue}'
-		}
-		valueTile("ch6Power", "device.ch6Power", decoration:"flat", width:1, height: 1) {
-			state "default", label:'${currentValue} W'
-		}
-		standardTile("ch6Switch", "device.ch6Switch", width:1, height: 1) {
-			state "on", label:'ON', action:"ch6Off", backgroundColor: "#00a0dc"
-			state "off", label:'OFF', action:"ch6On"
-		}		
-        
-		main (["switch"])
+        standardTile("test", "test", decoration: "flat", width: 2, height: 2) {
+            state "default", label:'Test', action:"test", icon:"st.secondary.tools"
+        }
+
+        main(["switch"])
 		details(detailsTiles)
-	}
-	
-	
-	preferences {		
-	
-		input "mainSwitchDelay", "enum",
-			title: "Main Switch Outlet Delay:",
-			defaultValue: "0",
-			required: false,
-			options:mainSwitchDelayOptions
+    }
 
-		
-		configParams.each {
-			getOptionsInput(it)
-		}
-		
-		// input "inactivePower", "enum",
-			// title: "Report Acceleration Inactive when Power is Below:",
-			// defaultValue: "1.9",
-			// required: false,
-			// displayDuringSetup: true,
-			// options: inactivePowerOptions
-		
-		// getBoolInput("displayAcceleration", "Display Acceleration in Secondary Status", false)
+    preferences {
 
-		["Power", "Energy"].each {
-			getBoolInput("display${it}", "Display ${it} Activity", true)
-		}
-		
-		getBoolInput("debugOutput", "Enable Debug Logging", true)
-	}
+        section { // GENERAL:
+            input (
+                type: "paragraph",
+                element: "paragraph",
+                title: "GENERAL:",
+                description: "General device handler settings."
+            )
+
+            input (
+                name: "configLoggingLevelIDE",
+                title: "IDE Live Logging Level:\nMessages with this level and higher will be logged to the IDE.",
+                type: "enum",
+                options: [
+                    "0" : "None",
+                    "1" : "Error",
+                    "2" : "Warning",
+                    "3" : "Info",
+                    "4" : "Debug",
+                    "5" : "Trace"
+                ],
+                defaultValue: "3",
+                required: false
+            )
+
+            input (
+                name: "configLoggingLevelDevice",
+                title: "Device Logging Level:\nMessages with this level and higher will be logged to the logMessage attribute.",
+                type: "enum",
+                options: [
+                    "0" : "None",
+                    "1" : "Error",
+                    "2" : "Warning"
+                ],
+                defaultValue: "2",
+                required: false
+            )
+
+            input (
+                name: "configSyncAll",
+                title: "Force Full Sync:\nAll device settings will be re-sent to the device.",
+                type: "boolean",
+                defaultValue: false,
+                required: false
+            )
+
+            input (
+                name: "configAutoOffTime",
+                title: "Timer Function (Auto-off):\nAutomatically switch off the device after a specified time.\n" +
+                "Values:\n0 = Function Disabled\n1-86400 = time in seconds\nDefault Value: 0",
+                type: "number",
+                range: "0..86400",
+                defaultValue: 0,
+                required: false
+            )
+
+            input (
+                name: "configIgnoreCurrentLeakageAlarms",
+                title: "Ignore Current Leakage Alarms:\nDo not raise a fault on a current leakage alarm.",
+                type: "boolean",
+                defaultValue: false,
+                required: false
+            )
+
+            input (
+                name: "configSwitchAllMode",
+                title: "ALL ON/ALL OFF Function:\nResponse to SWITCH_ALL_SET commands.",
+                type: "enum",
+                options: [
+                    "0" : "0: All ON not active, All OFF not active",
+                    "1" : "1: All ON not active, All OFF active",
+                    "2" : "2: All ON active, All OFF not active",
+                    "255" : "255: All ON active, All OFF active"],
+                defaultValue: "255",
+                required: false
+            )
+
+		    getBoolInput("debugOutput", "Enable Debug Logging", true)
+        }
+
+        generatePrefsParams()
+
+        //generatePrefsAssocGroups() // All Assoc Groups are HubOnly for this device.
+
+    }
+
 }
 
 private getDetailsTiles() {
-	def tiles = ["switch", "energy", "power", "powerHigh", "powerLow", "refresh", "reset", "configure", "firmwareVersion", "syncStatus",
-            "instMode",
+	def tiles = [
+            "switch",
+            "instMode","power",
             "wheelStatus",
             "energyLastReset","energy",
             "blink",
             "localProtectionMode",
             "rfProtectionMode",
             "syncPending",
-            "fault"]
+//            "refresh",
+            "fault"//,
+            //"test"
+        ]
 	(1..6).each {
 		tiles << "ch${it}Name"
 		tiles << "ch${it}Power"
@@ -298,15 +278,6 @@ private getDetailsTiles() {
 	return tiles
 }
 
-private getOptionsInput(param) {
-	input "configParam${param.num}", "enum",
-		title: "${param.name}:",
-		required: false,
-		defaultValue: "${param.value}",
-		displayDuringSetup: true,
-		options: param.options
-}
-
 private getBoolInput(name, title, defaultVal) {
 	input "${name}", "bool", 
 		title: "${title}?", 
@@ -314,34 +285,65 @@ private getBoolInput(name, title, defaultVal) {
 		required: false
 }
 
-def installed () { 
-	sendEvent(name:"energyTime", value:new Date().time, displayed: false)
-	
-	// Make sure the outlets get created if using the new mobile app.
-	runIn(30, createChildDevices) 
+/***
+* Helper Methods:
+****/
+// Meters
+private getMeterEnergy() { 
+	return getMeterMap("energy", 0, "kWh", settings?.displayEnergy != false) 
 }
 
-def updated() {	
-	if (!isDuplicateCommand(state.lastUpdated, 3000)) {
-		state.lastUpdated = new Date().time
+private getMeterPower() { 
+	return getMeterMap("power", 2, "W", settings?.displayPower != false)
+}
 
-		unschedule()
-		
-		runIn(2, updateSecondaryStatus)
-		
-		runEvery3Hours(ping)
-		
-		def cmds = []
-		
-		if (childDevices?.size() != 6) {
-			cmds += createChildDevices()
+private getMeterMap(name, scale, unit, displayed) {
+	return [name:name, scale:scale, unit:unit, displayed:displayed]
+}
+
+private safeToInt(val, defaultVal=0) {
+	return "${val}"?.isInteger() ? "${val}".toInteger() : defaultVal
+}
+
+private safeToDec(val, defaultVal=0.0) {
+	return "${val}"?.isBigDecimal() ? "${val}".toBigDecimal() : defaultVal
+}
+
+/****
+* Child Commands:
+***/
+
+private getAttrVal(attrName, child=null) {
+	try {
+		if (child) {
+			return child?.currentValue("${attrName}")
 		}
-		
-		cmds += configure()
-		return cmds ? response(cmds) : []
-	}	
+		else {
+			return device?.currentValue("${attrName}")
+		}
+	}
+	catch (ex) {
+		logTrace "$ex"
+		return null
+	}
 }
 
+private findChildByEndPoint(endPoint) {
+	def dni = getChildDeviceNetworkId(endPoint)
+	return findChildByDeviceNetworkId(dni)
+}
+
+private findChildByDeviceNetworkId(dni) {
+	return childDevices?.find { it.deviceNetworkId == dni }
+}
+
+private getEndPoint(childDeviceNetworkId) {
+	return safeToInt("${childDeviceNetworkId}".reverse().take(1))
+}
+
+private getChildDeviceNetworkId(endPoint) {
+    return "${device.deviceNetworkId}-CH${endPoint}"
+}
 
 def createChildDevices() {
 	def cmds = []
@@ -359,6 +361,7 @@ def createChildDevices() {
 	return cmds ? delayBetween(cmds, 1000) : []
 }
 
+
 //'GreenWave PowerNode 6 Zooz Frankenstein VER 2.0 Child' name should match in child device handler
 private addChildOutlet(dni, endPoint) {
 	logDebug "Creating CH${endPoint} Child Device"
@@ -375,91 +378,6 @@ private addChildOutlet(dni, endPoint) {
 		//	componentName: "CH${endPoint}"
 		]
 	)
-}
-
-
-def configure() {	
-	logDebug "configure()..."
-	updateHealthCheckInterval()
-	
-	runIn(10, updateSyncStatus)
-			
-	def cmds = []
-	def delay = 500
-
-	cmds << versionGetCmd()
-	cmds << "delay ${delay}"
-	
-	if (device.currentValue("power") == null) {
-	    logDebug "Supports power..."
-		cmds += getRefreshCmds()
-		cmds << "delay ${delay}"
-	}
-	
-	if (device.currentValue("energy") == null) {
-	    logDebug "Supports energy..."
-		cmds += getResetCmds()
-		cmds << "delay ${delay}"
-	}
-	
-	if (device.currentValue("switch")) {
-		cmds += getConfigureCmds()
-	}
-	
-	return cmds
-}
-
-private updateHealthCheckInterval() {
-	def minReportingInterval = (3 * 60 * 60)
-	
-	if (state.minReportingInterval != minReportingInterval) {
-		state.minReportingInterval = minReportingInterval
-			
-		// Set the Health Check interval so that it can be skipped twice plus 5 minutes.
-		def checkInterval = ((minReportingInterval * 2) + (5 * 60))
-		
-		def eventMap = createEventMap("checkInterval", checkInterval, false)
-		eventMap.data = [protocol: "zwave", hubHardwareId: device.hub.hardwareID]
-		
-		sendEvent(eventMap)
-	}
-}
-
-private getConfigureCmds() {
-	def cmds = []	
-	
-	if (state.resyncAll) {
-		cmds << versionGetCmd()
-	}
-
-	configParams.each { 
-		def storedVal = getParamStoredValue(it.num)
-		if (state.resyncAll || "${storedVal}" != "${it.value}") {
-			if (state.configured) {
-				logDebug "CHANGING ${it.name}(#${it.num}) from ${storedVal} to ${it.value}"
-				cmds << configSetCmd(it)
-			}
-			cmds << configGetCmd(it)
-		}
-	}
-	return cmds ? delayBetween(cmds, 250) : []
-}
-
-
-def ping() {
-	logDebug "ping()..."
-	return sendCommands([basicGetCmd()])
-}
-
-
-def on() {
-	logDebug "on()..."
-	return getAllSwitchCmds(0xFF)
-}
-
-def off() {
-	logDebug "off()..."
-	return getAllSwitchCmds(0x00)
 }
 
 private getAllSwitchCmds(value) {
@@ -484,7 +402,6 @@ private getAllSwitchCmds(value) {
 	}	
 	return cmds
 }
-
 
 def childUpdated(dni) {
 	logDebug "childUpdated(${dni})"
@@ -530,553 +447,10 @@ private getChildSwitchCmds(value, dni) {
 	], 500)
 }
 
-
-def refresh() {
-	logDebug "refresh()..."
-	def cmds = getRefreshCmds()
-	/*
-	(6..7).each {
-		cmds << "delay 250"
-		cmds << switchBinaryGetCmd(it)
-	}
-   */
-		
-	childDevices.each {
-		def dni = it.deviceNetworkId
-		def endPoint = getEndPoint(dni)		
-		if (true/*!isUsbEndPoint(endPoint)*/) {
-			cmds << "delay 250"
-			cmds += getRefreshCmds(dni)
-			
-			if (!device.currentValue("ch${endPoint}Name")) {
-				childUpdated(dni)
-			}
-		}
-	}
-	return cmds	
-}
-
 def childRefresh(dni) {
 	logDebug "childRefresh($dni)..."
 	sendCommands(getRefreshCmds(dni))
 }
-
-private getRefreshCmds(dni=null) {
-	def endPoint = getEndPoint(dni)
-	delayBetween([ 
-		switchBinaryGetCmd(endPoint),
-		meterGetCmd(meterEnergy, endPoint),
-		meterGetCmd(meterPower, endPoint)
-	], 250)
-}
-
-
-def reset() {
-	logDebug "reset()..."
-	
-	runIn(10, refresh)
-	
-	def cmds = getResetCmds()	
-	childDevices.each { child ->
-		cmds << "delay 1000"
-		if (child.hasAttribute("power")) {
-			cmds += getResetCmds(child.deviceNetworkId)
-		}
-	}
-	return cmds		
-}
-
-def childReset(dni) {
-	logDebug "childReset($dni)"
-	
-	def cmds = getResetCmds(dni)
-	cmds << "delay 3000"
-	cmds += getRefreshCmds(dni)
-	sendCommands(cmds)
-}
-
-private getResetCmds(dni=null) {
-	def endPoint = getEndPoint(dni)
-	def child = findChildByDeviceNetworkId(dni)
-	def power = getAttrVal("power", child) ?: 0
-		
-	executeSendEvent(child, createEventMap("powerLow", power, false))
-	executeSendEvent(child, createEventMap("powerHigh", power, false))
-	executeSendEvent(child, createEventMap("energyTime", new Date().time, false))
-	
-	return [meterResetCmd(endPoint)]
-}
-
-
-private sendCommands(cmds) {
-	def actions = []
-	cmds?.each {
-		actions << new physicalgraph.device.HubAction(it)
-	}
-	sendHubCommand(actions, 100)
-	return []
-}
-
-
-private versionGetCmd() {
-	return secureCmd(zwave.versionV1.versionGet())
-}
-
-private basicGetCmd() {
-	return secureCmd(zwave.basicV1.basicGet())
-}
-
-private meterGetCmd(meter, endPoint) {
-	return multiChannelCmdEncapCmd(zwave.meterV3.meterGet(scale: meter.scale), endPoint)
-}
-
-private meterResetCmd(endPoint) {
-	return multiChannelCmdEncapCmd(zwave.meterV3.meterReset(), endPoint)
-}
-
-private switchBinaryGetCmd(endPoint) {
-	return multiChannelCmdEncapCmd(zwave.switchBinaryV1.switchBinaryGet(), endPoint)
-}
-
-private switchBinarySetCmd(val, endPoint) {
-	return multiChannelCmdEncapCmd(zwave.switchBinaryV1.switchBinarySet(switchValue: val), endPoint)
-}
-
-private multiChannelCmdEncapCmd(cmd, endPoint) {	
-	return secureCmd(zwave.multiChannelV3.multiChannelCmdEncap(destinationEndPoint:endPoint).encapsulate(cmd))
-}
-
-private configSetCmd(param) {
-    logDebug "Setting config..."
-	return secureCmd(zwave.configurationV1.configurationSet(parameterNumber: param.num, size: param.size, scaledConfigurationValue: param.value))
-}
-
-private configGetCmd(param) {
-	return secureCmd(zwave.configurationV2.configurationGet(parameterNumber: param.num))
-}
-
-private secureCmd(cmd) {
-	if (securityEnabled) {
-		return zwave.securityV1.securityMessageEncapsulation().encapsulate(cmd).format()
-	}
-	else {
-		return cmd.format()
-	}	
-}
-
-
-private getSecurityEnabled() {
-	try {
-		return (zwaveInfo?.zw?.contains("s") || ("0x98" in device.rawDescription?.split(" ")))
-	}
-	catch (e) {
-		// zwaveInfo throws exception if device had to be manually created.
-	}
-}
-
-
-private getCommandClassVersions() {
-	[
-		0x20: 1,	// Basic
-		0x25: 1,	// Switch Binary
-		0x32: 3,	// Meter v4
-		0x59: 1,	// AssociationGrpInfo
-		0x55: 1,	// Transport Service
-		0x5A: 1,	// DeviceResetLocally
-		0x5E: 2,	// ZwaveplusInfo
-		0x60: 3,	// Multi Channel (4)
-		0x6C: 1,	// Supervision
-		0x70: 2,	// Configuration
-		0x71: 3,	// Notification
-		0x72: 2,	// ManufacturerSpecific
-		0x73: 1,	// Powerlevel
-		0x7A: 2,	// Firmware Update Md (3)
-		0x85: 2,	// Association
-		0x86: 1,	// Version (2)
-		0x8E: 2,	// Multi Channel Association
-		0x98: 1,	// Security 0
-		0x9F: 1		// Security 2
-	]
-}
-
-
-def parse(String description) {	
-	def result = []
-	try {
-		def cmd = zwave.parse(description, commandClassVersions)
-		if (cmd) {
-			result += zwaveEvent(cmd)		
-		}
-		else {
-			log.warn "Unable to parse: $description"
-		}
-			
-		if (!isDuplicateCommand(state.lastCheckinTime, 60000)) {
-			state.lastCheckinTime = new Date().time
-			sendEvent(createEventMap("lastCheckin", convertToLocalTimeString(new Date()), false))
-		}
-	}
-	catch (e) {
-		log.error "${e}"
-	}
-	return result
-}
-
-
-def zwaveEvent(physicalgraph.zwave.commands.securityv1.SecurityMessageEncapsulation cmd) {
-	def encapsulatedCmd = cmd.encapsulatedCommand(commandClassVersions)	
-	
-	def result = []
-	if (encapsulatedCmd) {
-		result += zwaveEvent(encapsulatedCmd)
-	}
-	else {
-		log.warn "Unable to extract encapsulated cmd from $cmd"
-	}
-	return result
-}
-
-
-def zwaveEvent(physicalgraph.zwave.commands.multichannelv3.MultiChannelCmdEncap cmd) {
-	def encapsulatedCommand = cmd.encapsulatedCommand([0x31: 3])
-	
-	if (encapsulatedCommand) {
-		return zwaveEvent(encapsulatedCommand, cmd.sourceEndPoint)
-	}
-	else {
-		logDebug "Unable to get encapsulated command: $cmd"
-		return []
-	}
-}
-
-
-def zwaveEvent(physicalgraph.zwave.commands.versionv1.VersionReport cmd) {
-	logTrace "VersionReport: ${cmd}"
-	
-	def version = "${cmd.applicationVersion}.${cmd.applicationSubVersion}"
-	
-	if (version != device.currentValue("firmwareVersion")) {
-		logDebug "Firmware: ${version}"
-		sendEvent(name: "firmwareVersion", value: version, displayed:false)
-	}
-	return []	
-}
-
-def zwaveEvent(physicalgraph.zwave.commands.configurationv2.ConfigurationReport cmd) {
-    logDebug "Configuration V2 report received: parameter '${cmd.parameterNumber}' with a byte size of '${cmd.size}' is set to '${cmd.configurationValue}'"
-
-	state.configured = true
-	
-	updateSyncStatus("Syncing...")
-	runIn(10, updateSyncStatus)
-	
-	def param = configParams.find { it.num == cmd.parameterNumber }
-	def val = cmd.size == 1 ? cmd.configurationValue[0] : cmd.scaledConfigurationValue
-	if (param) {	
-		
-		logDebug "${param.name}(#${param.num}) = ${val} ("
-		setParamStoredValue(param.num, val)				
-	}
-	else {
-        // Update wheelStatus if parameter #2:
-        if (cmd.parameterNumber == 2) {
-            def wheelStatus = getWheelColours()[val]
-            def wheelEvent = createEvent(name: "wheelStatus", value: wheelStatus)
-            if (wheelEvent.isStateChange) logger("Room Colour Wheel changed to ${wheelStatus}.","info")
-            return [ wheelEvent ]
-        } else {
-		  logDebug "Unknown Parameter #${cmd.parameterNumber} = ${val}"
-        }
-	}		
-	state.resyncAll = false	
-	return []
-}
-
-def updateSyncStatus(status=null) {	
-	if (status == null) {	
-		def changes = getPendingChanges()
-		if (changes > 0) {
-			status = "${changes} Pending Change" + ((changes > 1) ? "s" : "")
-		}
-		else {
-			status = "Synced"
-		}
-	}	
-	if ("${syncStatus}" != "${status}") {
-		executeSendEvent(null, createEventMap("syncStatus", status, false))		
-	}
-}
-
-private getSyncStatus() {
-	return device.currentValue("syncStatus")
-}
-
-private getPendingChanges() {
-	return (configParams.count { isConfigParamSynced(it) ? 0 : 1 })
-}
-
-private isConfigParamSynced(param) {
-	return (param.value == getParamStoredValue(param.num))
-}
-
-private getParamStoredValue(paramNum) {
-	return safeToInt(state["configVal${paramNum}"], null)
-}
-
-private setParamStoredValue(paramNum, value) {
-	state["configVal${paramNum}"] = value
-}
-
-
-def zwaveEvent(physicalgraph.zwave.commands.switchbinaryv1.SwitchBinaryReport cmd, endPoint=0) {
-	logTrace "SwitchBinaryReport: ${cmd} (CH${endPoint})"
-	
-	def value = (cmd.value == 0xFF) ? "on" : "off"
-	
-	executeSendEvent(findChildByEndPoint(endPoint), createEventMap("switch", value))
-	
-	def switchName = /*isUsbEndPoint(endPoint) ? "usb${endPoint - 6}Switch" :*/ "ch${endPoint}Switch"
-	sendEvent(name: switchName, value:value, displayed: false)
-	return []
-}
-
-
-def zwaveEvent(physicalgraph.zwave.commands.basicv1.BasicReport cmd, endPoint=0) {
-	logTrace "BasicReport: ${cmd} (CH${endPoint})"
-	
-	return []
-}
-
-
-def zwaveEvent(physicalgraph.zwave.commands.meterv3.MeterReport cmd, endPoint=0) {
-	def val = roundTwoPlaces(cmd.scaledMeterValue)
-	def child = findChildByEndPoint(endPoint)	
-	
-	switch (cmd.scale) {
-		case meterEnergy.scale:			
-			sendEnergyEvents(child, val)
-			break
-		case meterPower.scale:
-			sendPowerEvents(child, val)
-			sendEvent(name: "ch${endPoint}Power", value: val, unit:"w", displayed: false)
-			break
-		default:
-			logDebug "Unknown Meter Scale: $cmd"
-	}
-	
-	runIn(2, updateSecondaryStatus)
-	return []
-}
-
-
-private sendPowerEvents(child, value) {
-	def highLowNames = [] 
-	
-	executeSendEvent(child, createEventMap("power", value, meterPower.displayed, meterPower.unit))
-	
-	// sendAccelerationEvent(child, value)
-		
-	if (getAttrVal("powerHigh", child) == null || value > getAttrVal("powerHigh", child)) {
-		highLowNames << "powerHigh"
-	}
-	
-	if (getAttrVal("powerLow", child) == null || value < getAttrVal("powerLow", child)) {
-		highLowNames << "powerLow"
-	}
-	
-	highLowNames.each {
-		executeSendEvent(child, createEventMap("$it", value, false, meterPower.unit))
-	}	
-}
-
-
-private sendEnergyEvents(child, value) {
-	executeSendEvent(child, createEventMap("energy", value, meterEnergy.displayed, meterEnergy.unit))
-	
-	executeSendEvent(child, createEventMap("energyDuration", calculateEnergyDuration(child), false))
-}
-
-private calculateEnergyDuration(child) {
-	def energyTimeMS = getAttrVal("energyTime", child)
-	if (!energyTimeMS) {
-		return "Unknown"
-	}
-	else {
-		def duration = roundTwoPlaces((new Date().time - energyTimeMS) / 60000)
-		
-		if (duration >= (24 * 60)) {
-			return getFormattedDuration(duration, (24 * 60), "Day")
-		}
-		else if (duration >= 60) {
-			return getFormattedDuration(duration, 60, "Hour")
-		}
-		else {
-			return getFormattedDuration(duration, 0, "Minute")
-		}
-	}
-}
-
-private getFormattedDuration(duration, divisor, name) {
-	if (divisor) {
-		duration = roundTwoPlaces(duration / divisor)
-	}	
-	return "${duration} ${name}${duration == 1 ? '' : 's'}"
-}
-
-
-def updateSecondaryStatus() {
-	(0..6).each { endPoint ->	
-		def child = findChildByEndPoint(endPoint)
-		def power = getAttrVal("power", child) ?: 0
-		def energy = getAttrVal("energy", child) ?: 0
-		def duration = getAttrVal("energyDuration", child) ?: ""
-		// def active = getAttrVal("acceleration", child) ?: "inactive"
-		
-		if (duration) {
-			duration = " - ${duration}"
-		}
-		
-		def status = ""
-		
-		// status = settings?.displayAcceleration ? "${active.toUpperCase()} / " : ""
-		
-		status =  "${status}${power} ${meterPower.unit} / ${energy} ${meterEnergy.unit}${duration}"
-		
-		if (getAttrVal("secondaryStatus", child) != "${status}") {
-			executeSendEvent(child, createEventMap("secondaryStatus", status, false))
-		}
-	}
-}
-
-
-def zwaveEvent(physicalgraph.zwave.Command cmd) {
-	logDebug "Unhandled zwaveEvent: $cmd"
-	return []
-}
-
-
-// Meters
-private getMeterEnergy() { 
-	return getMeterMap("energy", 0, "kWh", settings?.displayEnergy != false) 
-}
-
-private getMeterPower() { 
-	return getMeterMap("power", 2, "W", settings?.displayPower != false)
-}
-
-private getMeterMap(name, scale, unit, displayed) {
-	return [name:name, scale:scale, unit:unit, displayed:displayed]
-}
-
-// Configuration Parameters
-private getConfigParams() {
-	def params = [
-	]
-
-	if (isSupportedFirmware(4.28)) {
-        params += powerFailureRecoveryParam
-        params += ledNetworkError
-	}
-
-	return params?.sort { it.num }
-}
-
-private getPowerFailureRecoveryParam() {
-	return getParam(3, "State After Power Failure", 1, 0, [0:"Off", 1:"Restore Previous State", 2:"On"])
-}
-
-private getLedNetworkError() {
-	return getParam(4, "LED for Network Error", 1, 0, [0:"Disabled", 1:"Enabled"])
-}
-
-private getParam(num, name, size, defaultVal, options=null) {
-	def val = defaultVal // safeToInt((settings ? settings["configParam${num}"] : null), defaultVal) 
-	
-	def map = [num: num, name: name, size: size, value: val]
-	if (options) {
-		map.valueName = options?.find { k, v -> "${k}" == "${val}" }?.value
-		map.options = setDefaultOption(options, defaultVal)
-	}
-	
-	return map
-}
-
-private setDefaultOption(options, defaultVal) {
-	return options?.collectEntries { k, v ->
-		if ("${k}" == "${defaultVal}") {
-			v = "${v} [DEFAULT]"		
-		}
-		["$k": "$v"]
-	}
-}
-
-
-private getOverloadOptions() {
-	def options = [0:"Disabled (Not Recommended)"]
-	options += powerOptions
-	return options
-}
-
-private getPowerReportingThresholdOptions() {
-	def options = [0:"Disabled"]
-	options += powerOptions
-	return options
-}
-
-private getPowerOptions() {
-	def options = [:]
-	[1,2,3,4,5,10,15,20,25,50,75,100,150,200,250,500,750,1000,1250,1500].each {
-		options["${it}"] = "${it} W"
-	}		
-	if (!isOriginalFirmware()) {
-		options["1800"] = "1800 W"
-	}
-	return options
-}
-
-private getFrequencyOptions() {
-	def options = [:]
-	options = getTimeOptionsRange(options, "Second", 1, [5,10,15,30,45])
-	options = getTimeOptionsRange(options, "Minute", 60, [1,2,3,4,5,10,15,30,45])
-	options = getTimeOptionsRange(options, "Hour", (60 * 60), [1,2,3,6,9,12,24])
-	return options
-}
-
-private getAutoOnOffIntervalOptions() {
-	def options = [:]
-	options = getTimeOptionsRange(options, "Minute", 1, [1,2,3,4,5,6,7,8,9,10,15,20,25,30,45])
-	options = getTimeOptionsRange(options, "Hour", 60, [1,2,3,4,5,6,7,8,9,10,12,18])
-	options = getTimeOptionsRange(options, "Day", (60 * 24), [1,2,3,4,5,6])
-	options = getTimeOptionsRange(options, "Week", (60 * 24 * 7), [1,2])
-	return options
-}
-
-private getMainSwitchDelayOptions() {
-	def options = [0:"Disabled",500:"500 Milliseconds"]
-	options = getTimeOptionsRange(options, "Second", 1000, [1,2,3,4,5,10])
-	return setDefaultOption(options, 0)
-}
-
-private getTimeOptionsRange(options, name, multiplier, range) {	
-	range?.each {
-		options["${(it * multiplier)}"] = "${it} ${name}${it == 1 ? '' : 's'}"
-	}
-	return options
-}
-
-private getEnabledOptions() {
-	return [0:"Disabled", 1:"Enabled"]
-}
-
-// Settings
-private getMainSwitchDelaySetting() {
-	return safeToInt(settings?.mainSwitchDelay)
-}
-
-// private getInactivePowerSetting() {
-	// return safeToDec(settings?.inactivePower) ?: 1.9
-// }
-
 
 private executeSendEvent(child, evt) {
 	if (evt.displayed == null) {
@@ -1097,125 +471,293 @@ private executeSendEvent(child, evt) {
 	}
 }
 
-private createEventMap(name, value, displayed=null, unit=null) {	
-	def eventMap = [
-		name: name,
-		value: value,
-		displayed: displayed,
-		isStateChange: true,
-		descriptionText: "${device.displayName} - ${name} is ${value}"
-	]
-	
-	if (unit) {
-		eventMap.unit = unit
-		eventMap.descriptionText = "${eventMap.descriptionText} ${unit}"
-	}	
-	return eventMap
-}
-
-private getAttrVal(attrName, child=null) {
-	try {
-		if (child) {
-			return child?.currentValue("${attrName}")
+def updateSecondaryStatus() {
+	(0..6).each { endPoint ->	
+		def child = findChildByEndPoint(endPoint)
+		def power = getAttrVal("power", child) ?: 0
+		def energy = getAttrVal("energy", child) ?: 0
+		def duration = getAttrVal("energyDuration", child) ?: ""
+		// def active = getAttrVal("acceleration", child) ?: "inactive"
+		
+		if (duration) {
+			duration = " - ${duration}"
 		}
-		else {
-			return device?.currentValue("${attrName}")
+		
+		def status = ""
+		
+		// status = settings?.displayAcceleration ? "${active.toUpperCase()} / " : ""
+		
+		status =  "${status}${power} ${meterPower.unit} / ${energy} ${meterEnergy.unit}${duration}"
+		
+		if (getAttrVal("secondaryStatus", child) != "${status}") {
+			executeSendEvent(child, createEvent(name: "secondaryStatus", value: status, displayed: false))
 		}
 	}
-	catch (ex) {
-		logTrace "$ex"
-		return null
-	}
 }
 
-private findChildByEndPoint(endPoint) {
-	def dni = getChildDeviceNetworkId(endPoint)
-	return findChildByDeviceNetworkId(dni)
-}
+/*****************************************************************************************************************
+ *  SmartThings System Commands:
+ *****************************************************************************************************************/
 
-private findChildByDeviceNetworkId(dni) {
-	return childDevices?.find { it.deviceNetworkId == dni }
-}
+/**
+ *  installed()
+ *
+ *  Runs when the device is first installed.
+ *
+ *  Action: Set initial values for internal state, and request MSR/Version reports.
+ **/
+def installed() {
+    log.trace "installed()"
 
-private getEndPoint(childDeviceNetworkId) {
-	return safeToInt("${childDeviceNetworkId}".reverse().take(1))
-}
+    state.installedAt = now()
+    state.energyLastReset = new Date().format("YYYY/MM/dd \n HH:mm:ss", location.timeZone)
+    state.loggingLevelIDE     = 3
+    state.loggingLevelDevice  = 2
+    state.useSecurity = false
+    state.useCrc16 = true
+    state.fwVersion = 4.23 // Will be updated when versionReport is received.
+    state.protectLocalTarget = 0
+    state.protectRfTarget = 0
+    state.autoOffTime = 0
 
-private getChildDeviceNetworkId(endPoint) {
-	/*if (isUsbEndPoint(endPoint)) {
-		return "${device.deviceNetworkId}-USB${endPoint - 5}"		
-	}
-	else {
-		return "${device.deviceNetworkId}-CH${endPoint}"
-	}*/
-    return "${device.deviceNetworkId}-CH${endPoint}"
-}
+    sendEvent(name: "fault", value: "clear", displayed: false)
+    
+    if (childDevices?.size() != 6) {
+        cmds += createChildDevices()
+    }
 
-private isOriginalFirmware() {
-	def fw = device?.currentValue("firmwareVersion")
-	return "${fw}" == "1.0"
-}
+    def cmds = []
+    cmds << zwave.configurationV1.configurationSet(parameterNumber: 1, size: 1, scaledConfigurationValue: 255) // Set Keep-Alive to 255.
+    cmds << zwave.configurationV1.configurationGet(parameterNumber: 2) // Wheel Status
+    cmds << zwave.protectionV2.protectionGet()
+    cmds << zwave.manufacturerSpecificV2.manufacturerSpecificGet()
+    cmds << zwave.versionV1.versionGet()
 
-private isSupportedFirmware(minFirmware) {
-	def fw = device?.currentValue("firmwareVersion")
-	return fw ? safeToDec(fw) >= minFirmware : true
-}
-
-
-private safeToInt(val, defaultVal=0) {
-	return "${val}"?.isInteger() ? "${val}".toInteger() : defaultVal
-}
-
-private safeToDec(val, defaultVal=0.0) {
-	return "${val}"?.isBigDecimal() ? "${val}".toBigDecimal() : defaultVal
-}
-
-private roundTwoPlaces(val) {
-	return Math.round(safeToDec(val) * 100) / 100
-}
-
-private convertToLocalTimeString(dt) {
-	def timeZoneId = location?.timeZone?.ID
-	if (timeZoneId) {
-		return dt.format("MM/dd/yyyy hh:mm:ss a", TimeZone.getTimeZone(timeZoneId))
-	}
-	else {
-		return "$dt"
-	}	
-}
-
-private isDuplicateCommand(lastExecuted, allowedMil) {
-	!lastExecuted ? false : (lastExecuted + allowedMil > new Date().time) 
-}
-
-private logDebug(msg) {
-	if (settings?.debugOutput != false) {
-		log.debug "$msg"
-	}
-}
-
-private logTrace(msg) {
-	// log.trace "$msg"
+    sendCommands(cmds)
 }
 
 /**
- *  getWheelColours()
+ *  updated()
  *
- *  Returns a map of wheel colours.
+ *  Runs when the user hits "Done" from Settings page.
+ *
+ *  Action: Process new settings, sync parameters and association group members with the physical device.
+ *
+ *  Note: Weirdly, update() seems to be called twice. So execution is aborted if there was a previous execution
+ *  within two seconds. See: https://community.smartthings.com/t/updated-being-called-twice/62912
  **/
-private getWheelColours() {
-    return [
-        0x80 : "black",
-        0x81 : "green",
-        0x82 : "blue",
-        0x83 : "red",
-        0x84 : "yellow",
-        0x85 : "violet",
-        0x86 : "orange",
-        0x87 : "aqua",
-        0x88 : "pink",
-        0x89 : "white"
-    ]
+def updated() {
+    logger("updated()","trace")
+
+    def cmds = []
+
+    if (childDevices?.size() != 6) {
+        cmds += createChildDevices()
+    }
+    
+	runIn(2, updateSecondaryStatus)
+
+    if (!state.updatedLastRanAt || now() >= state.updatedLastRanAt + 2000) {
+        state.updatedLastRanAt = now()
+
+        // Update internal state:
+        state.loggingLevelIDE     = (settings.configLoggingLevelIDE) ? settings.configLoggingLevelIDE.toInteger() : 3
+        state.loggingLevelDevice  = (settings.configLoggingLevelDevice) ? settings.configLoggingLevelDevice.toInteger(): 2
+        state.syncAll             = ("true" == settings.configSyncAll)
+        state.autoOffTime         = (settings.configAutoOffTime) ? settings.configAutoOffTime.toInteger() : 0
+        state.ignoreCurrentLeakageAlarms = ("true" == settings.configIgnoreCurrentLeakageAlarms)
+        state.switchAllModeTarget = (settings.configSwitchAllMode) ? settings.configSwitchAllMode.toInteger() : 255
+
+        // Update Parameter target values:
+        getParamsMd(state).findAll( { !it.readonly & (it.fwVersion <= state.fwVersion) } ).each { // Exclude readonly/newer parameters.
+            state."paramTarget${it.id}" = settings."configParam${it.id}"?.toInteger()
+        }
+
+        // Update Assoc Group target values:
+        getAssocGroupsMd().findAll( { !it.hubOnly } ).each {
+            state."assocGroupTarget${it.id}" = parseAssocGroupInput(settings."configAssocGroup${it.id}", it.maxNodes)
+        }
+        getAssocGroupsMd().findAll( { it.hubOnly } ).each {
+            state."assocGroupTarget${it.id}" = [ zwaveHubNodeId ]
+        }
+
+        // Sync configuration with phyiscal device:
+        sync(state.syncAll)
+
+        // Request device medadata (this just seems the best place to do it):
+        cmds << zwave.manufacturerSpecificV2.manufacturerSpecificGet()
+        cmds << zwave.versionV1.versionGet()
+
+        return sendCommands(cmds)
+    }
+    else {
+        logger("updated(): Ran within last 2 seconds so aborting.","debug")
+    }
+}
+
+/**
+ *  parse()
+ *
+ *  Called when messages from the device are received by the hub. The parse method is responsible for interpreting
+ *  those messages and returning event definitions (and command responses).
+ *
+ *  As this is a Z-wave device, zwave.parse() is used to convert the message into a command. The command is then
+ *  passed to zwaveEvent(), which is overloaded for each type of command below.
+ *
+ *  Note: There is no longer any need to check if description == "updated".
+ *
+ *  Parameters:
+ *   String      description        The raw message from the device.
+ **/
+def parse(description) {
+    logger("parse(): Parsing raw message: ${description}","trace")
+
+    def result = []
+
+    def cmd = zwave.parse(description, getCommandClassVersions())
+    if (cmd) {
+        result += zwaveEvent(cmd)
+    } else {
+        logger("parse(): Could not parse raw message: ${description}","error")
+    }
+    return result
+}
+
+/*****************************************************************************************************************
+ *  Z-wave Event Handlers.
+ *****************************************************************************************************************/
+
+/**
+ *  zwaveEvent( COMMAND_CLASS_BASIC (0x20) : BASIC_REPORT (0x03) )
+ *
+ *  The Basic Report command is used to advertise the status of the primary functionality of the device.
+ *
+ *  Action: Raise switch event and log an info message if state has changed.
+ *    Schedule autoOff() if an autoOffTime is configured.
+ *
+ *  cmd attributes:
+ *    Short    value
+ *      0x00       = Off
+ *      0x01..0x63 = 0..100%
+ *      0xFE       = Unknown
+ *      0xFF       = On
+ *
+ *  Example: BasicReport(value: 255)
+ **/
+def zwaveEvent(physicalgraph.zwave.commands.basicv1.BasicReport cmd, endPoint=0) {
+    logger("zwaveEvent(): Basic Report received: ${cmd}","trace")
+
+    def result = []
+
+    def switchValue = (cmd.value ? "on" : "off")
+    def switchEvent = createEvent(name: "switch", value: switchValue)
+    if (switchEvent.isStateChange) logger("Switch turned ${switchValue}.","info")
+    result << switchEvent
+
+    if ( switchEvent.isStateChange & (switchValue == "on") & (state.autoOffTime > 0) ) {
+        logger("Scheduling Auto-off in ${state.autoOffTime} seconds.","info")
+        runIn(state.autoOffTime,autoOff)
+    }
+    
+    if (endPoint != 0) {
+	  def child = findChildByEndPoint(endPoint)
+      result.each { executeSendEvent(child, it) }
+      return []
+    } else {
+      return result
+    }
+}
+
+/**
+ *  zwaveEvent( COMMAND_CLASS_APPLICATION_STATUS (0x22) : APPLICATION_BUSY (0x01) )
+ *
+ *  The Application Busy command used to instruct a node that the node that it is trying to communicate with is
+ *  busy and is unable to service the request right now.
+ *
+ *  Action: Log a warning message.
+ *
+ *  cmd attributes:
+ *    Short  status
+ *      0  =  Try again later.
+ *      1  =  Try again in Wait Time seconds.
+ *      2  =  Request queued, executed later.
+ *    Short  waitTime  Number of seconds to wait before retrying.
+ *
+ *  Example: ApplicationBusy(status: 0, waitTime: 0)
+ **/
+def zwaveEvent(physicalgraph.zwave.commands.applicationstatusv1.ApplicationBusy cmd) {
+    logger("zwaveEvent(): Application Busy received: ${cmd}","trace")
+
+    switch(cmd.status) {
+        case 0:
+        logger("Device is busy. Try again later.","warn")
+        break
+        case 1:
+        logger("Device is busy. Retry in ${cmd.waitTime} seconds.","warn")
+        break
+        case 2:
+        logger("Device is busy. Request is queued.","warn")
+        break
+    }
+}
+
+/**
+ *  zwaveEvent( COMMAND_CLASS_APPLICATION_STATUS (0x22) : APPLICATION_REJECTED_REQUEST (0x02) )
+ *
+ *  The Application Rejected Request command used to instruct a node that a command was rejected by the receiving node.
+ *
+ *  Action: Log a warning message.
+ *
+ *  Note: These will be received if rfProtectionMode is 'No Control'.
+ *
+ *  cmd attributes:
+ *    Short  status  Always 0.
+ *
+ *  Example: ApplicationRejectedRequest(status: 0)
+ **/
+def zwaveEvent(physicalgraph.zwave.commands.applicationstatusv1.ApplicationRejectedRequest cmd) {
+    //logger("zwaveEvent(): Application Rejected Request received: ${cmd}","trace")
+    logger("A command was rejected. Most likely, RF Protection Mode is set to 'No Control'.","warn")
+}
+
+/**
+ *  zwaveEvent( COMMAND_CLASS_SWITCH_BINARY (0x25) : SWITCH_BINARY_REPORT (0x03) )
+ *
+ *  The Binary Switch Report command  is used to advertise the status of a device with On/Off or Enable/Disable
+ *  capability.
+ *
+ *  Action: Raise switch event and log an info message if state has changed.
+ *    Schedule autoOff() if an autoOffTime is configured.
+ *
+ *  cmd attributes:
+ *    Short   value   0xFF for on, 0x00 for off
+ *
+ *  Example: SwitchBinaryReport(value: 255)
+ **/
+def zwaveEvent(physicalgraph.zwave.commands.switchbinaryv1.SwitchBinaryReport cmd, endPoint=0) {
+    logger("zwaveEvent(): Switch Binary Report received: ${cmd}","trace")
+    
+    def switchValue = (cmd.value ? "on" : "off")
+
+    def result = []
+
+    def switchName =  (endpoint != 0) ? "ch${endPoint}Switch" : "switch"
+    def switchEvent = createEvent(name: switchName, value: switchValue)
+    if (switchEvent.isStateChange) logger("Switch turned ${switchValue}.","info")
+    result << switchEvent
+
+    if ( switchEvent.isStateChange & (switchValue == "on") & (state.autoOffTime > 0) ) {
+        logger("Scheduling Auto-off in ${state.autoOffTime} seconds.","info")
+        runIn(state.autoOffTime,autoOff)
+    }
+
+    if (endPoint != 0) {
+	  def child = findChildByEndPoint(endPoint)
+      result.each { executeSendEvent(child, it) }
+      return []
+    } else {
+      return result
+    }
 }
 
 /**
@@ -1264,6 +806,770 @@ def zwaveEvent(physicalgraph.zwave.commands.switchallv1.SwitchAllReport cmd) {
 }
 
 /**
+ *  zwaveEvent( COMMAND_CLASS_METER_V3 (0x32) : METER_REPORT_V3 (0x02) )
+ *
+ *  The Meter Report Command is used to advertise a meter reading.
+ *
+ *  Action: Raise appropriate type of event (and disp... event) and log an info message.
+ *   Plus, request a Switch Binary Report if power report suggests switch state has changed.
+ *   (This is necessary because the PowerNode does not report physical switch events reliably).
+ *
+ *  Note: GreenWave PowerNode supports energy and power reporting only.
+ *
+ *  cmd attributes:
+ *    Integer        deltaTime                   Time in seconds since last report.
+ *    Short          meterType                   Specifies the type of metering device.
+ *      0x00 = Unknown
+ *      0x01 = Electric meter
+ *      0x02 = Gas meter
+ *      0x03 = Water meter
+ *    List<Short>    meterValue                  Meter value as an array of bytes.
+ *    Double         scaledMeterValue            Meter value as a double.
+ *    List<Short>    previousMeterValue          Previous meter value as an array of bytes.
+ *    Double         scaledPreviousMeterValue    Previous meter value as a double.
+ *    Short          size                        The size of the array for the meterValue and previousMeterValue.
+ *    Short          scale                       Indicates what unit the sensor uses (dependent on meterType).
+ *    Short          precision                   The decimal precision of the values.
+ *    Short          rateType                    Specifies if it is import or export values to be read.
+ *      0x01 = Import (consumed)
+ *      0x02 = Export (produced)
+ *    Boolean        scale2                      ???
+ **/
+def zwaveEvent(physicalgraph.zwave.commands.meterv3.MeterReport cmd, endPoint=0) {
+    logger("zwaveEvent(): Meter Report received: ${cmd}","trace")
+
+    def result = []
+
+    switch (cmd.meterType) {
+        case 1:  // Electric meter:
+            switch (cmd.scale) {
+                case 0:  // Accumulated Energy (kWh):
+                    result << createEvent(name: "energy", value: cmd.scaledMeterValue, unit: "kWh", displayed: true)
+                    result << createEvent(name: "dispEnergy", value: String.format("%.2f",cmd.scaledMeterValue as BigDecimal) + " kWh", displayed: false)
+                    logger("New meter reading: Accumulated Energy: ${cmd.scaledMeterValue} kWh","info")
+                    break
+
+                case 1:  // Accumulated Energy (kVAh):
+                    result << createEvent(name: "energy", value: cmd.scaledMeterValue, unit: "kVAh", displayed: true)
+                    result << createEvent(name: "dispEnergy", value: String.format("%.2f",cmd.scaledMeterValue as BigDecimal) + " kVAh", displayed: false)
+                    logger("New meter reading: Accumulated Energy: ${cmd.scaledMeterValue} kVAh","info")
+                    break
+
+                case 2:  // Instantaneous Power (Watts):
+                    result << createEvent(name: "power", value: cmd.scaledMeterValue, unit: "W", displayed: true)
+                    result << createEvent(name: "dispPower", value: String.format("%.1f",cmd.scaledMeterValue as BigDecimal) + " W", displayed: false)
+                    logger("New meter reading: Instantaneous Power: ${cmd.scaledMeterValue} W","info")
+
+                    // Request Switch Binary Report if power suggests switch state has changed:
+                    def sw = (cmd.scaledMeterValue) ? "on" : "off"
+                    if ( device.latestValue("switch") != sw && endPoint == 0) { result << prepCommands([zwave.switchBinaryV1.switchBinaryGet()]) }
+                    break
+
+                case 3:  // Accumulated Pulse Count:
+                    result << createEvent(name: "pulseCount", value: cmd.scaledMeterValue, unit: "", displayed: true)
+                    logger("New meter reading: Accumulated Electricity Pulse Count: ${cmd.scaledMeterValue}","info")
+                    break
+
+                case 4:  // Instantaneous Voltage (Volts):
+                    result << createEvent(name: "voltage", value: cmd.scaledMeterValue, unit: "V", displayed: true)
+                    result << createEvent(name: "dispVoltage", value: String.format("%.1f",cmd.scaledMeterValue as BigDecimal) + " V", displayed: false)
+                    logger("New meter reading: Instantaneous Voltage: ${cmd.scaledMeterValue} V","info")
+                    break
+
+                 case 5:  // Instantaneous Current (Amps):
+                    result << createEvent(name: "current", value: cmd.scaledMeterValue, unit: "A", displayed: true)
+                    result << createEvent(name: "dispCurrent", value: String.format("%.1f",cmd.scaledMeterValue as BigDecimal) + " V", displayed: false)
+                    logger("New meter reading: Instantaneous Current: ${cmd.scaledMeterValue} A","info")
+                    break
+
+                 case 6:  // Instantaneous Power Factor:
+                    result << createEvent(name: "powerFactor", value: cmd.scaledMeterValue, unit: "", displayed: true)
+                    result << createEvent(name: "dispPowerFactor", value: String.format("%.1f",cmd.scaledMeterValue as BigDecimal), displayed: false)
+                    logger("New meter reading: Instantaneous Power Factor: ${cmd.scaledMeterValue}","info")
+                    break
+
+                default:
+                    logger("zwaveEvent(): Meter Report with unhandled scale: ${cmd}","warn")
+                    break
+            }
+            break
+
+        default:
+            logger("zwaveEvent(): Meter Report with unhandled meterType: ${cmd}","warn")
+            break
+    }
+    
+	runIn(2, updateSecondaryStatus)
+
+    if (endPoint != 0) {
+	  def child = findChildByEndPoint(endPoint)
+      result.each { executeSendEvent(child, it) }
+      return []
+    } else {
+      return result
+    }
+}
+
+/**
+ *  zwaveEvent( COMMAND_CLASS_CRC16_ENCAP (0x56) : CRC_16_ENCAP (0x01) )
+ *
+ *  The CRC-16 Encapsulation Command Class is used to encapsulate a command with an additional CRC-16 checksum
+ *  to ensure integrity of the payload. The purpose for this command class is to ensure a higher integrity level
+ *  of payloads carrying important data.
+ *
+ *  Action: Extract the encapsulated command and pass to zwaveEvent().
+ *
+ *  Note: Validation of the checksum is not necessary as this is performed by the hub.
+ *
+ *  cmd attributes:
+ *    Integer      checksum      Checksum.
+ *    Short        command       Command identifier of the embedded command.
+ *    Short        commandClass  Command Class identifier of the embedded command.
+ *    List<Short>  data          Embedded command data.
+ *
+ *  Example: Crc16Encap(checksum: 125, command: 2, commandClass: 50, data: [33, 68, 0, 0, 0, 194, 0, 0, 77])
+ **/
+def zwaveEvent(physicalgraph.zwave.commands.crc16encapv1.Crc16Encap cmd) {
+    logger("zwaveEvent(): CRC-16 Encapsulation Command received: ${cmd}","trace")
+
+    def versions = getCommandClassVersions()
+    def version = versions[cmd.commandClass as Integer]
+    def ccObj = version ? zwave.commandClass(cmd.commandClass, version) : zwave.commandClass(cmd.commandClass)
+    def encapsulatedCommand = ccObj?.command(cmd.command)?.parse(cmd.data)
+    // TO DO: It should be possible to replace the lines above with this line soon...
+    //def encapsulatedCommand = cmd.encapsulatedCommand(getCommandClassVersions())
+    if (!encapsulatedCommand) {
+        logger("zwaveEvent(): Could not extract command from ${cmd}","error")
+    } else {
+        return zwaveEvent(encapsulatedCommand)
+    }
+}
+
+/**
+ *  zwaveEvent( COMMAND_CLASS_CONFIGURATION (0x70) : CONFIGURATION_REPORT (0x03) )
+ *
+ *  The Configuration Report Command is used to advertise the actual value of the advertised parameter.
+ *
+ *  Action: Store the value in the parameter cache, update syncPending, and log an info message.
+ *   Update wheelStatus if parameter #2.
+ *
+ *  Note: Ideally, we want to update the corresponding preference value shown on the Settings GUI, however this
+ *  is not possible due to security restrictions in the SmartThings platform.
+ *
+ *  cmd attributes:
+ *    List<Short>  configurationValue  Value of parameter (byte array).
+ *    Short        parameterNumber     Parameter ID.
+ *    Short        size                Size of parameter's value (bytes).
+ *
+ *  Example: ConfigurationReport(configurationValue: [10], parameterNumber: 0, reserved11: 0,
+ *            scaledConfigurationValue: 10, size: 1)
+ **/
+def zwaveEvent(physicalgraph.zwave.commands.configurationv1.ConfigurationReport cmd) {
+    logger("zwaveEvent(): Configuration Report received: ${cmd}","trace")
+
+    def result = []
+
+    def paramMd = getParamsMd(state).find( { it.id == cmd.parameterNumber })
+    // Some values are treated as unsigned and some as signed, so we convert accordingly:
+    def paramValue = (paramMd?.isSigned) ? cmd.scaledConfigurationValue : byteArrayToUInt(cmd.configurationValue)
+    def signInfo = (paramMd?.isSigned) ? "SIGNED" : "UNSIGNED"
+
+    state."paramCache${cmd.parameterNumber}" = paramValue
+    logger("Parameter #${cmd.parameterNumber} [${paramMd?.name}] has value: ${paramValue} [${signInfo}]","info")
+    updateSyncPending()
+
+    // Update wheelStatus if parameter #2:
+    if (cmd.parameterNumber == 2) {
+        def wheelStatus = getWheelColours()[paramValue]
+        def wheelEvent = createEvent(name: "wheelStatus", value: wheelStatus)
+        if (wheelEvent.isStateChange) logger("Room Colour Wheel changed to ${wheelStatus}.","info")
+        result << wheelEvent
+    }
+
+    return result
+}
+
+/**
+ *  zwaveEvent( COMMAND_CLASS_ALARM (0x71) : ALARM_REPORT (0x05) )
+ *
+ *  The Alarm Report command used to report the type and level of an alarm.
+ *
+ *  Action: Raise a fault event and log a warning message.
+ *
+ *  Note: The GreenWave PowerNode seems especially eager to raise current leakage alarms, so there is an
+ *  optional setting to ignore them.
+ *
+ *  cmd attributes:
+ *    Short  alarmLevel  Application specific
+ *    Short  alarmType   Application specific
+ *
+ *  Example: AlarmReport(alarmLevel: 1, alarmType: 1)
+ **/
+def zwaveEvent(physicalgraph.zwave.commands.alarmv1.AlarmReport cmd) {
+    logger("zwaveEvent(): Alarm Report received: ${cmd}","trace")
+
+    def result = []
+
+    switch(cmd.alarmType) {
+        case 1: // Current Leakage:
+            if (!state.ignoreCurrentLeakageAlarms) { result << createEvent(name: "fault", value: "currentLeakage",
+              descriptionText: "Current Leakage detected!", displayed: true) }
+            logger("Current Leakage detected!","warn")
+            break
+
+        // TO DO: Check other alarm codes.
+
+        default: // Over-current:
+            result << createEvent(name: "fault", value: "current", descriptionText: "Over-current detected!", displayed: true)
+            logger("Over-current detected!","warn")
+            break
+    }
+
+    return result
+}
+
+/**
+ *  zwaveEvent( COMMAND_CLASS_MANUFACTURER_SPECIFIC_V2 (0x72) : MANUFACTURER_SPECIFIC_REPORT_V2 (0x05) )
+ *
+ *  Manufacturer-Specific Reports are used to advertise manufacturer-specific information, such as product number
+ *  and serial number.
+ *
+ *  Action: Publish values as device 'data'. Log a warn message if manufacturerId and/or productId do not match.
+ *
+ *  Example: ManufacturerSpecificReport(manufacturerId: 153, manufacturerName: GreenWave Reality Inc.,
+ *   productId: 2, productTypeId: 2)
+ **/
+def zwaveEvent(physicalgraph.zwave.commands.manufacturerspecificv2.ManufacturerSpecificReport cmd) {
+    logger("zwaveEvent(): Manufacturer-Specific Report received: ${cmd}","trace")
+
+    // Display as hex strings:
+    def manufacturerIdDisp = String.format("%04X",cmd.manufacturerId)
+    def productIdDisp = String.format("%04X",cmd.productId)
+    def productTypeIdDisp = String.format("%04X",cmd.productTypeId)
+
+    logger("Manufacturer-Specific Report: Manufacturer ID: ${manufacturerIdDisp}, Manufacturer Name: ${cmd.manufacturerName}" +
+    ", Product Type ID: ${productTypeIdDisp}, Product ID: ${productIdDisp}","info")
+
+    updateDataValue("manufacturerName",cmd.manufacturerName)
+    updateDataValue("manufacturerId",manufacturerIdDisp)
+    updateDataValue("productId",productIdDisp)
+    updateDataValue("productTypeId",productTypeIdDisp)
+}
+
+/**
+ *  zwaveEvent( COMMAND_CLASS_PROTECTION_V2 (0x75) : PROTECTION_REPORT_V2 (0x03) )
+ *
+ *  The Protection Report is used to report the protection state of a device.
+ *  I.e. measures to prevent unintentional control (e.g. by a child).
+ *
+ *  Action: Cache values, update syncPending, and log an info message.
+ *
+ *  cmd attributes:
+ *    Short  localProtectionState  Local protection state (i.e. physical switches/buttons)
+ *    Short  rfProtectionState     RF protection state.
+ *
+ *  Example: ProtectionReport(localProtectionState: 0, reserved01: 0, reserved11: 0, rfProtectionState: 0)
+ **/
+def zwaveEvent(physicalgraph.zwave.commands.protectionv2.ProtectionReport cmd) {
+    logger("zwaveEvent(): Protection Report received: ${cmd}","trace")
+
+    def result = []
+
+    state.protectLocalCache = cmd.localProtectionState
+    state.protectRfCache = cmd.rfProtectionState
+
+    def lpStates = ["unprotected","sequence","noControl"]
+    def lpValue = lpStates[cmd.localProtectionState]
+    def lpEvent = createEvent(name: "localProtectionMode", value: lpValue)
+    if (lpEvent.isStateChange) logger("Local Protection set to ${lpValue}.","info")
+    result << lpEvent
+
+    def rfpStates = ["unprotected","noControl","noResponse"]
+    def rfpValue = rfpStates[cmd.rfProtectionState]
+    def rfpEvent = createEvent(name: "rfProtectionMode", value: rfpValue)
+    if (rfpEvent.isStateChange) logger("RF Protection set to ${rfpValue}.","info")
+    result << rfpEvent
+
+    logger("Protection Report: Local Protection: ${lpValue}, RF Protection: ${rfpValue}","info")
+    updateSyncPending()
+
+    return result
+}
+
+/**
+ *  zwaveEvent( COMMAND_CLASS_ASSOCIATION_V2 (0x85) : ASSOCIATION_REPORT_V2 (0x03) )
+ *
+ *  The Association Report command is used to advertise the current destination nodes of a given association group.
+ *
+ *  Action: Cache value and log info message only.
+ *
+ *  Note: Ideally, we want to update the corresponding preference value shown on the Settings GUI, however this
+ *  is not possible due to security restrictions in the SmartThings platform.
+ *
+ *  Example: AssociationReport(groupingIdentifier: 1, maxNodesSupported: 1, nodeId: [1], reportsToFollow: 0)
+ **/
+def zwaveEvent(physicalgraph.zwave.commands.associationv2.AssociationReport cmd) {
+    logger("zwaveEvent(): Association Report received: ${cmd}","trace")
+
+    state."assocGroupCache${cmd.groupingIdentifier}" = cmd.nodeId
+
+    // Display to user in hex format (same as IDE):
+    def hexArray  = []
+    cmd.nodeId.each { hexArray.add(String.format("%02X", it)) };
+    def assocGroupMd = getAssocGroupsMd().find( { it.id == cmd.groupingIdentifier })
+    logger("Association Group ${cmd.groupingIdentifier} [${assocGroupMd?.name}] contains nodes: ${hexArray} (hexadecimal format)","info")
+
+    updateSyncPending()
+}
+
+/**
+ *  zwaveEvent( COMMAND_CLASS_VERSION (0x86) : VERSION_REPORT (0x12) )
+ *
+ *  The Version Report Command is used to advertise the library type, protocol version, and application version.
+ *
+ *  Action: Publish values as device 'data' and log an info message.
+ *          Store fwVersion as state.fwVersion.
+ *
+ *  cmd attributes:
+ *    Short  applicationSubVersion
+ *    Short  applicationVersion
+ *    Short  zWaveLibraryType
+ *    Short  zWaveProtocolSubVersion
+ *    Short  zWaveProtocolVersion
+ *
+ *  Example: VersionReport(applicationSubVersion: 4, applicationVersion: 3, zWaveLibraryType: 3,
+ *   zWaveProtocolSubVersion: 5, zWaveProtocolVersion: 4)
+ **/
+def zwaveEvent(physicalgraph.zwave.commands.versionv1.VersionReport cmd) {
+    logger("zwaveEvent(): Version Report received: ${cmd}","trace")
+
+    def zWaveLibraryTypeDisp  = String.format("%02X",cmd.zWaveLibraryType)
+    def zWaveLibraryTypeDesc  = ""
+    switch(cmd.zWaveLibraryType) {
+        case 1:
+            zWaveLibraryTypeDesc = "Static Controller"
+            break
+
+        case 2:
+            zWaveLibraryTypeDesc = "Controller"
+            break
+
+        case 3:
+            zWaveLibraryTypeDesc = "Enhanced Slave"
+            break
+
+        case 4:
+            zWaveLibraryTypeDesc = "Slave"
+            break
+
+        case 5:
+            zWaveLibraryTypeDesc = "Installer"
+            break
+
+        case 6:
+            zWaveLibraryTypeDesc = "Routing Slave"
+            break
+
+        case 7:
+            zWaveLibraryTypeDesc = "Bridge Controller"
+            break
+
+        case 8:
+            zWaveLibraryTypeDesc = "Device Under Test (DUT)"
+            break
+
+        case 0x0A:
+            zWaveLibraryTypeDesc = "AV Remote"
+            break
+
+        case 0x0B:
+            zWaveLibraryTypeDesc = "AV Device"
+            break
+
+        default:
+            zWaveLibraryTypeDesc = "N/A"
+    }
+
+    def applicationVersionDisp = String.format("%d.%02d",cmd.applicationVersion,cmd.applicationSubVersion)
+    def zWaveProtocolVersionDisp = String.format("%d.%02d",cmd.zWaveProtocolVersion,cmd.zWaveProtocolSubVersion)
+
+    state.fwVersion = new BigDecimal(applicationVersionDisp)
+
+    logger("Version Report: Application Version: ${applicationVersionDisp}, " +
+           "Z-Wave Protocol Version: ${zWaveProtocolVersionDisp}, " +
+           "Z-Wave Library Type: ${zWaveLibraryTypeDisp} (${zWaveLibraryTypeDesc})","info")
+
+    updateDataValue("applicationVersion","${cmd.applicationVersion}")
+    updateDataValue("applicationSubVersion","${cmd.applicationSubVersion}")
+    updateDataValue("zWaveLibraryType","${zWaveLibraryTypeDisp}")
+    updateDataValue("zWaveProtocolVersion","${cmd.zWaveProtocolVersion}")
+    updateDataValue("zWaveProtocolSubVersion","${cmd.zWaveProtocolSubVersion}")
+}
+
+/**
+ *  zwaveEvent( COMMAND_CLASS_INDICATOR (0x87) : INDICATOR_REPORT (0x03) )
+ *
+ *  The Indicator Report command is used to advertise the state of an indicator.
+ *
+ *  Action: Do nothing. It doesn't tell us anything useful.
+ *
+ *  cmd attributes:
+ *    Short value  Indicator status.
+ *      0x00       = Off/Disabled
+ *      0x01..0x63 = Indicator Range.
+ *      0xFF       = On/Enabled.
+ *
+ *  Example: IndicatorReport(value: 0)
+ **/
+def zwaveEvent(physicalgraph.zwave.commands.indicatorv1.IndicatorReport cmd) {
+    logger("zwaveEvent(): Indicator Report received: ${cmd}","trace")
+}
+
+/**
+ *  zwaveEvent( DEFAULT CATCHALL )
+ *
+ *  Called for all commands that aren't handled above.
+ **/
+def zwaveEvent(physicalgraph.zwave.Command cmd) {
+    logger("zwaveEvent(): No handler for command: ${cmd}","error")
+}
+
+def zwaveEvent(physicalgraph.zwave.commands.multichannelv3.MultiChannelCmdEncap cmd) {
+	def encapsulatedCommand = cmd.encapsulatedCommand([0x31: 3])
+	
+	if (encapsulatedCommand) {
+		return zwaveEvent(encapsulatedCommand, cmd.sourceEndPoint)
+	}
+	else {
+		logDebug "Unable to get encapsulated command: $cmd"
+		return []
+	}
+}
+
+
+/*****************************************************************************************************************
+ *  Capability-related Commands:
+ *****************************************************************************************************************/
+
+/**
+ *  on()                        [Capability: Switch]
+ *
+ *  Turn the switch on.
+ **/
+def on() {
+    logger("on(): Turning switch on.","info")
+        sendCommands([
+        zwave.basicV1.basicSet(value: 0xFF).format(),
+        zwave.switchBinaryV1.switchBinaryGet().format(),
+        "delay 3000",
+        zwave.meterV2.meterGet(scale: 2).format()
+    ])
+}
+
+/**
+ *  off()                       [Capability: Switch]
+ *
+ *  Turn the switch off.
+ **/
+def off() {
+    logger("off(): Turning switch off.","info")
+    sendCommands([
+        zwave.basicV1.basicSet(value: 0x00).format(),
+        zwave.switchBinaryV1.switchBinaryGet().format(),
+        "delay 3000",
+        zwave.meterV2.meterGet(scale: 2).format()
+    ])
+}
+
+/**
+ *  poll()                      [Capability: Polling]
+ *
+ *  Calls refresh().
+ **/
+def poll() {
+    logger("poll()","trace")
+    refresh()
+}
+
+private getRefreshCmds(dni=null) {
+	def endPoint = getEndPoint(dni)
+	delayBetween([ 
+		switchBinaryGetCmd(endPoint),
+		meterGetCmd(meterEnergy, endPoint),
+		meterGetCmd(meterPower, endPoint)
+	], 250)
+}
+
+/**
+ *  refresh()                   [Capability: Refresh]
+ *
+ *  Action: Request switchBinary, energy, and power reports. Plus, get wheel status.
+ *  Trigger a sync too.
+ **/
+ 
+def refresh() {
+    logger("refresh()","trace")
+    def cmds = getRefreshCmds()
+    cmds += zwave.configurationV1.configurationGet(parameterNumber: 2) // Wheel Status
+    
+	childDevices.each {
+		def dni = it.deviceNetworkId
+		def endPoint = getEndPoint(dni)		
+		if (true/*!isUsbEndPoint(endPoint)*/) {
+			cmds << "delay 250"
+			cmds += getRefreshCmds(dni)
+			
+			if (!device.currentValue("ch${endPoint}Name")) {
+				childUpdated(dni)
+			}
+		}
+	}
+    sendCommands(cmds)
+    sync()
+}
+
+/*****************************************************************************************************************
+ *  Custom Commands:
+ *****************************************************************************************************************/
+
+/**
+ *  blink()
+ *
+ *  Causes the Circle LED to blink for ~20 seconds.
+ **/
+def blink() {
+    logger("blink(): Blinking Circle LED","info")
+    sendCommands([zwave.indicatorV1.indicatorSet(value: 255)])
+}
+
+/**
+ *  autoOff()
+ *
+ *  Calls off(), but with additional log message.
+ **/
+def autoOff() {
+    logger("autoOff(): Automatically turning off the device.","info")
+    off()
+}
+
+/**
+ *  reset()
+ *
+ *  Alias for resetEnergy().
+ *
+ *  Note: this used to be part of the official 'Energy Meter' capability, but isn't anymore.
+ **/
+def reset() {
+    logger("reset()","trace")
+    resetEnergy()
+}
+
+/**
+ *  resetEnergy()
+ *
+ *  Reset the Accumulated Energy figure held in the device.
+ **/
+def resetEnergy() {
+    logger("resetEnergy(): Resetting Accumulated Energy","info")
+
+    state.energyLastReset = new Date().format("YYYY/MM/dd \n HH:mm:ss", location.timeZone)
+    sendEvent(name: "energyLastReset", value: state.energyLastReset, descriptionText: "Accumulated Energy Reset")
+
+    sendCommands([
+        zwave.meterV3.meterReset(),
+        zwave.meterV3.meterGet(scale: 0)
+    ],400)
+}
+
+/**
+ *  resetFault()
+ *
+ *  Reset fault alarm to 'clear'.
+ **/
+def resetFault() {
+    logger("resetFault(): Resetting fault alarm.","info")
+    sendEvent(name: "fault", value: "clear", descriptionText: "Fault alarm cleared", displayed: true)
+}
+
+/**
+ *  setLocalProtectionMode(localProtectionMode)
+ *
+ *  Set local (physical) protection mode.
+ *
+ *  Note: GreenWave PowerNode supports "unprotected" and "noControl" modes only.
+ *
+ *  localProtectionMode values:
+ *   "unprotected"  Physical switches are operational.
+ *   "sequence"     Special sequence required to operate.
+ *   "noControl"    Physical switches are disabled.
+ **/
+def setLocalProtectionMode(localProtectionMode) {
+    logger("setLocalProtectionMode(${localProtectionMode})","trace")
+
+    switch(localProtectionMode.toLowerCase()) {
+        case "unprotected":
+            state.protectLocalTarget = 0
+            break
+        case "sequence":
+            logger("setLocalProtectionMode(): Protection by sequence is not supported by this device.","warn")
+            state.protectLocalTarget = 2
+            break
+        case "nocontrol":
+            state.protectLocalTarget = 2
+            break
+        default:
+            logger("setLocalProtectionMode(): Unknown protection mode: ${localProtectionMode}.","warn")
+    }
+    sync()
+}
+
+/**
+ *  toggleLocalProtectionMode()
+ *
+ *  Toggle local (physical) protection mode between "unprotected" and "noControl" modes.
+ **/
+def toggleLocalProtectionMode() {
+    logger("toggleLocalProtectionMode()","trace")
+
+    if (device.latestValue("localProtectionMode") != "unprotected") {
+        setLocalProtectionMode("unprotected")
+    }
+    else {
+        setLocalProtectionMode("noControl")
+    }
+}
+
+/**
+ *  setRfProtectionMode(rfProtectionMode)
+ *
+ *  Set RF (wireless) protection mode.
+ *
+ *  Note: GreenWave PowerNode supports "unprotected" and "noControl" modes only.
+ *
+ *  rfProtectionMode values:
+ *   "unprotected"   Device responds to wireless commands.
+ *   "noControl"     Device ignores wireless commands (sends ApplicationRejectedRequest).
+ *   "noResponse"    Device ignores wireless commands.
+ **/
+def setRfProtectionMode(rfProtectionMode) {
+    logger("setRfProtectionMode(${rfProtectionMode})","trace")
+
+    switch(rfProtectionMode.toLowerCase()) {
+        case "unprotected":
+            state.protectRfTarget = 0
+            break
+        case "nocontrol":
+            state.protectRfTarget = 1
+            break
+        case "noresponse":
+            logger("setRfProtectionMode(): NoResponse mode is not supported by this device.","warn")
+            state.protectRfTarget = 1
+            break
+        default:
+            logger("setRfProtectionMode(): Unknown protection mode: ${rfProtectionMode}.","warn")
+    }
+    sync()
+}
+
+/**
+ *  toggleRfProtectionMode()
+ *
+ *  Toggle RF (wireless) protection mode between "unprotected" and "noControl" modes.
+ **/
+def toggleRfProtectionMode() {
+    logger("toggleRfProtectionMode()","trace")
+
+    if (device.latestValue("rfProtectionMode") != "unprotected") {
+        setRfProtectionMode("unprotected")
+    }
+    else {
+        setRfProtectionMode("noControl")
+    }
+}
+
+
+/*****************************************************************************************************************
+ *  Private Helper Functions:
+ *****************************************************************************************************************/
+
+/**
+ *  encapCommand(cmd)
+ *
+ *  Applies security or CRC16 encapsulation to a command as needed.
+ *  Returns a physicalgraph.zwave.Command.
+ **/
+private encapCommand(physicalgraph.zwave.Command cmd) {
+    if (state.useSecurity) {
+        return zwave.securityV1.securityMessageEncapsulation().encapsulate(cmd)
+    }
+    else if (state.useCrc16) {
+        return zwave.crc16EncapV1.crc16Encap().encapsulate(cmd)
+    }
+    else {
+        return cmd
+    }
+}
+
+/**
+ *  prepCommands(cmds, delay=200)
+ *
+ *  Converts a list of commands (and delays) into a HubMultiAction object, suitable for returning via parse().
+ *  Uses encapCommand() to apply security or CRC16 encapsulation as needed.
+ **/
+private prepCommands(cmds, delay=200) {
+    return response(delayBetween(cmds.collect{ (it instanceof physicalgraph.zwave.Command ) ? encapCommand(it).format() : it },delay))
+}
+
+/**
+ *  sendCommands(cmds, delay=200)
+ *
+ *  Sends a list of commands directly to the device using sendHubCommand.
+ *  Uses encapCommand() to apply security or CRC16 encapsulation as needed.
+ **/
+private sendCommands(cmds, delay=200) {
+    sendHubCommand( cmds.collect{ (it instanceof physicalgraph.zwave.Command ) ? response(encapCommand(it)) : response(it) }, delay)
+}
+
+/**
+ *  logger()
+ *
+ *  Wrapper function for all logging:
+ *    Logs messages to the IDE (Live Logging), and also keeps a historical log of critical error and warning
+ *    messages by sending events for the device's logMessage attribute.
+ *    Configured using configLoggingLevelIDE and configLoggingLevelDevice preferences.
+ **/
+private logger(msg, level = "debug") {
+
+    switch(level) {
+        case "error":
+            if (state.loggingLevelIDE >= 1) log.error msg
+            if (state.loggingLevelDevice >= 1) sendEvent(name: "logMessage", value: "ERROR: ${msg}", displayed: false, isStateChange: true)
+            break
+
+        case "warn":
+            if (state.loggingLevelIDE >= 2) log.warn msg
+            if (state.loggingLevelDevice >= 2) sendEvent(name: "logMessage", value: "WARNING: ${msg}", displayed: false, isStateChange: true)
+            break
+
+        case "info":
+            if (state.loggingLevelIDE >= 3) log.info msg
+            break
+
+        case "debug":
+            if (state.loggingLevelIDE >= 4) log.debug msg
+            break
+
+        case "trace":
+            if (state.loggingLevelIDE >= 5) log.trace msg
+            break
+
+        default:
+            log.debug msg
+            break
+    }
+}
+
+/**
  *  sync()
  *
  *  Manages synchronisation of parameters, association groups, etc. with the physical device.
@@ -1282,14 +1588,14 @@ private sync(forceAll = false) {
     def syncPending = 0
 
     if (forceAll) { // Clear all cached values.
-        getParamsMd().findAll( {!it.readonly} ).each { state."paramCache${it.id}" = null }
+        getParamsMd(state).findAll( {!it.readonly} ).each { state."paramCache${it.id}" = null }
         getAssocGroupsMd().each { state."assocGroupCache${it.id}" = null }
         state.protectLocalCache = null
         state.protectRfCache = null
         state.switchAllModeCache = null
     }
 
-    getParamsMd().findAll( { !it.readonly & (it.fwVersion <= state.fwVersion) } ).each { // Exclude readonly/newer parameters.
+    getParamsMd(state).findAll( { !it.readonly & (it.fwVersion <= state.fwVersion) } ).each { // Exclude readonly/newer parameters.
         if ( (state."paramTarget${it.id}" != null) & (state."paramCache${it.id}" != state."paramTarget${it.id}") ) {
             cmds << zwave.configurationV1.configurationSet(parameterNumber: it.id, size: it.size, scaledConfigurationValue: state."paramTarget${it.id}".toInteger())
             cmds << zwave.configurationV1.configurationGet(parameterNumber: it.id)
@@ -1339,4 +1645,311 @@ private sync(forceAll = false) {
 
     sendEvent(name: "syncPending", value: syncPending, displayed: false)
     sendCommands(cmds,800)
+}
+
+/**
+ *  updateSyncPending()
+ *
+ *  Updates syncPending attribute, which advertises remaining number of sync operations.
+ **/
+private updateSyncPending() {
+
+    def syncPending = 0
+
+    getParamsMd(state).findAll( { !it.readonly & (it.fwVersion <= state.fwVersion) } ).each { // Exclude readonly/newer parameters.
+        if ( (state."paramTarget${it.id}" != null) & (state."paramCache${it.id}" != state."paramTarget${it.id}") ) {
+            syncPending++
+        }
+    }
+
+    getAssocGroupsMd().each {
+        def cachedNodes = state."assocGroupCache${it.id}"
+        def targetNodes = state."assocGroupTarget${it.id}"
+
+        if ( cachedNodes != targetNodes ) {
+            syncPending++
+        }
+    }
+
+    if ( (state.protectLocalCache == null) || (state.protectRfCache == null) ||
+         (state.protectLocalCache != state.protectLocalTarget) || (state.protectRfCache != state.protectRfTarget) ) {
+        syncPending++
+    }
+
+    if ( (state.switchAllModeTarget != null) & (state.switchAllModeCache != state.switchAllModeTarget) ) {
+        syncPending++
+    }
+
+    logger("updateSyncPending(): syncPending: ${syncPending}", "debug")
+    if ((syncPending == 0) & (device.latestValue("syncPending") > 0)) logger("Sync Complete.", "info")
+    sendEvent(name: "syncPending", value: syncPending, displayed: false)
+}
+
+/**
+ *  generatePrefsParams()
+ *
+ *  Generates preferences (settings) for device parameters.
+ **/
+private generatePrefsParams() {
+        section {
+            input (
+                type: "paragraph",
+                element: "paragraph",
+                title: "DEVICE PARAMETERS:",
+                description: "Device parameters are used to customise the physical device. " +
+                             "Refer to the product documentation for a full description of each parameter."
+            )
+
+    getParamsMd(state).findAll( {!it.readonly} ).each { // Exclude readonly parameters.
+        switch(it.type) {
+            case "number":
+            input (
+                name: "configParam${it.id}",
+                title: it.name,
+                type: it.type,
+                range: it.range,
+//                defaultValue: it.defaultValue, // iPhone users can uncomment these lines!
+                required: it.required
+            )
+            break
+
+            case "enum":
+            input (
+                name: "configParam${it.id}",
+                title: it.name,
+                type: it.type,
+                options: it.options,
+//                defaultValue: it.defaultValue, // iPhone users can uncomment these lines!
+                required: it.required
+            )
+            break
+        }
+    }
+        } // section
+}
+
+/**
+ *  generatePrefsAssocGroups()
+ *
+ *  Generates preferences (settings) for Association Groups.
+ *  Excludes any groups that are hubOnly.
+ **/
+private generatePrefsAssocGroups() {
+        section {
+            input (
+                type: "paragraph",
+                element: "paragraph",
+                title: "ASSOCIATION GROUPS:",
+                description: "Association groups enable the device to control other Z-Wave devices directly, " +
+                             "without participation of the main controller.\n" +
+                             "Enter a comma-delimited list of destinations (node IDs and/or endpoint IDs) for " +
+                             "each association group. All IDs must be in hexadecimal format. E.g.:\n" +
+                             "Node destinations: '11, 0F'\n" +
+                             "Endpoint destinations: '1C:1, 1C:2'"
+            )
+
+    getAssocGroupsMd().findAll( { !it.hubOnly } ).each {
+            input (
+                name: "configAssocGroup${it.id}",
+                title: "Association Group #${it.id}: ${it.name}: \n" + it.description + " \n[MAX NODES: ${it.maxNodes}]",
+                type: "text",
+//                defaultValue: "", // iPhone users can uncomment these lines!
+                required: false
+            )
+        }
+    }
+}
+
+/**
+ *  byteArrayToUInt(byteArray)
+ *
+ *  Converts a byte array to an UNSIGNED int.
+ **/
+private byteArrayToUInt(byteArray) {
+    // return java.nio.ByteBuffer.wrap(byteArray as byte[]).getInt()
+    def i = 0
+    byteArray.reverse().eachWithIndex { b, ix -> i += b * (0x100 ** ix) }
+    return i
+}
+
+/**
+ *  test()
+ *
+ *  Called from 'test' tile.
+ **/
+private test() {
+    logger("test()","trace")
+
+    def cmds = []
+
+    sendCommands(cmds, 500)
+}
+
+/*****************************************************************************************************************
+ *  Static Matadata Functions:
+ *
+ *  These functions encapsulate metadata about the device. Mostly obtained from:
+ *   Z-wave Alliance Reference: http://products.z-wavealliance.org/products/1036
+ *****************************************************************************************************************/
+
+/**
+ *  getCommandClassVersions()
+ *
+ *  Returns a map of the command class versions supported by the device. Used by parse() and zwaveEvent() to
+ *  extract encapsulated commands from MultiChannelCmdEncap, MultiInstanceCmdEncap, SecurityMessageEncapsulation,
+ *  and Crc16Encap messages.
+ *
+ *  Reference: http://products.z-wavealliance.org/products/629/classes
+ **/
+private getCommandClassVersions() {
+    return [
+        0x20: 1, // Basic V1
+        0x22: 1, // Application Status V1 (Not advertised but still sent)
+        0x25: 1, // Switch Binary V1
+        0x27: 1, // Switch All V1
+        0x32: 3, // Meter V3
+        0x56: 1, // CRC16 Encapsulation V1
+        0x70: 1, // Configuration V1
+        0x71: 1, // Alarm (Notification) V1
+        0x72: 2, // Manufacturer Specific V2
+        0x75: 2, // Protection V2
+        0x85: 2, // Association V2
+        0x86: 1, // Version V1
+        0x87: 1 // Indicator V1
+    ]
+}
+
+/**
+ *  getParamsMd()
+ *
+ *  Returns device parameters metadata. Used by sync(), updateSyncPending(), and generatePrefsParams().
+ *
+ *  List attributes:
+ *   id/size/type/range/defaultValue/required/name/description/options    These directly correspond to input attributes.
+ *   readonly     If the parameter is readonly, then it will not be displayed by generatePrefsParams() or synced.
+ *   isSigned     Indicates if the raw byte value represents a signed or unsigned number.
+ **/
+private getParamsMd(state) {
+    def params = [
+        // Firmware v4.22 onwards:
+        [id:  0, size: 1, type: "number", range: "1..100", defaultValue: 10, required: false, readonly: false,
+         isSigned: true,
+         name: "Power Report Threshold",
+         description : "Power level change that will result in a new power report being sent.\n" +
+         "Values: 1-100 = % change from previous report"],
+        [id:  1, size: 1, type: "number", range: "0..255", defaultValue: 255, required: false, readonly: false, // Real default is 2.
+         isSigned: false,
+         name: "Keep-Alive Time",
+         description : "Time after which the LED indicator will flash if there has been no communication from the hub.\n" +
+         "Values: 1-255 = time in minutes"],
+        [id: 2, size: 1, type: "number", defaultValue: 0, required: false, readonly: true, // READ-ONLY!
+         isSigned: false,
+         name: "Wheel Status",
+         description : "Indicates the position of the Room Colour Selector wheel."],
+    ]
+    if (state?.fwVersion >= 4.28) {
+     // Firmware v4.28 onwards:
+      params +=
+        [id: 3, size: 1, type: "enum", defaultValue: "2", required: false, readonly: false,
+         isSigned: true,
+         name: "State After Power Failure",
+         description : "Switch state to restore after a power failure",
+         options: ["0" : "0: Off",
+                   "1" : "1: Restore Previous State",
+                   "2" : "2: On"] ];
+      params +=
+        [id: 4, size: 1, type: "enum", defaultValue: "1", required: false, readonly: false,
+         isSigned: true,
+         name: "LED for Network Error",
+         description : "LED indicates network error",
+         options: ["0" : "0: DISABLED",
+                   "1" : "1: ENABLED"] ];
+    }
+    return params
+}
+
+/**
+ *  getAssocGroupsMd()
+ *
+ *  Returns association groups metadata. Used by sync(), updateSyncPending(), and generatePrefsAssocGroups().
+ *
+ *  List attributes:
+ *   id            Association group ID (groupingIdentifier).
+ *   maxNodes      Maximum nodes supported.
+ *   name          Name, shown on device settings screen and logs.
+ *   hubOnly       Group should only contain the SmartThings hub (not shown on settings screen).
+ *   multiChannel  Group supports multiChannelAssociation.
+ *   description   Description, shown on device settings screen.
+ **/
+private getAssocGroupsMd() {
+    return [
+        [id: 1, maxNodes: 1, name: "Wheel Status", hubOnly: true, multiChannel: false,
+         description : "Reports wheel status using CONFIGURATION_REPORT commands."],
+        [id: 2, maxNodes: 1, name: "Relay Health", hubOnly: true, multiChannel: false,
+         description : "Sends ALARM commands when current leakage is detected."],
+        [id: 3, maxNodes: 1, name: "Power Level", hubOnly: true, multiChannel: false,
+         description : "Reports instantaneous power using METER_REPORT commands (configured using parameter #0)."],
+        [id: 4, maxNodes: 1, name: "Overcurrent Protection", hubOnly: true, multiChannel: false,
+         description : "Sends ALARM commands when overcurrent is detected."]
+    ]
+}
+
+/**
+ *  getWheelColours()
+ *
+ *  Returns a map of wheel colours.
+ **/
+private getWheelColours() {
+    return [
+        0x80 : "black",
+        0x81 : "green",
+        0x82 : "blue",
+        0x83 : "red",
+        0x84 : "yellow",
+        0x85 : "violet",
+        0x86 : "orange",
+        0x87 : "aqua",
+        0x88 : "pink",
+        0x89 : "white"
+    ]
+}
+
+private logDebug(msg) {
+	if (settings?.debugOutput != false) {
+		log.debug "$msg"
+	}
+}
+
+private getSecurityEnabled() {
+	try {
+		return (zwaveInfo?.zw?.contains("s") || ("0x98" in device.rawDescription?.split(" ")))
+	}
+	catch (e) {
+		// zwaveInfo throws exception if device had to be manually created.
+	}
+}
+
+private switchBinaryGetCmd(endPoint) {
+	return multiChannelCmdEncapCmd(zwave.switchBinaryV1.switchBinaryGet(), endPoint)
+}
+
+private switchBinarySetCmd(val, endPoint) {
+	return multiChannelCmdEncapCmd(zwave.switchBinaryV1.switchBinarySet(switchValue: val), endPoint)
+}
+
+private multiChannelCmdEncapCmd(cmd, endPoint) {	
+	return secureCmd(zwave.multiChannelV3.multiChannelCmdEncap(destinationEndPoint:endPoint).encapsulate(cmd))
+}
+
+private meterGetCmd(meter, endPoint) {
+	return multiChannelCmdEncapCmd(zwave.meterV3.meterGet(scale: meter.scale), endPoint)
+}
+
+private secureCmd(cmd) {
+	if (securityEnabled) {
+		return zwave.securityV1.securityMessageEncapsulation().encapsulate(cmd).format()
+	}
+	else {
+		return cmd.format()
+	}	
 }
