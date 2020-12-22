@@ -255,14 +255,6 @@ metadata {
 
 }
 
-enum LoggerLevel {
-  ERROR,
-  WARN,
-  INFO,
-  DEBUG,
-  TRACE
-}
-
 private getDetailsTiles() {
 	def tiles = [
             "switch",
@@ -372,7 +364,7 @@ def createChildDevices() {
 
 //'GreenWave PowerNode 6 Zooz Frankenstein VER 2.0 Child' name should match in child device handler
 private addChildOutlet(dni, endPoint) {
-	logger("Creating CH${endPoint} Child Device",LoggerLevel.TRACE)
+	logger "Creating CH${endPoint} Child Device"
 	addChildDevice(
 		"getterdone", 
 		"GreenWave PowerNode 6 Zooz Frankenstein VER 2.0 Child", 
@@ -412,7 +404,7 @@ private getAllSwitchCmds(value) {
 }
 
 def childUpdated(dni) {
-	logger("childUpdated(${dni})",LoggerLevel.TRACE)
+	logger "childUpdated(${dni})"
 	def child = findChildByDeviceNetworkId(dni)
 	def endPoint = getEndPoint(dni)
 	def nameAttr = "ch${endPoint}Name"
@@ -430,7 +422,7 @@ def ch5On() { childOn(getChildDeviceNetworkId(5)) }
 def ch6On() { childOn(getChildDeviceNetworkId(6)) }
 
 def childOn(dni) {
-	logger("childOn(${dni})...",LoggerLevel.TRACE)
+	logger "childOn(${dni})..."
 	sendCommands(getChildSwitchCmds(0xFF, dni))
 }
 
@@ -443,7 +435,7 @@ def ch5Off() { childOff(getChildDeviceNetworkId(5)) }
 def ch6Off() { childOff(getChildDeviceNetworkId(6)) }
 
 def childOff(dni) {
-	logger("childOff(${dni})...",LoggerLevel.TRACE)
+	logger "childOff(${dni})..."
 	sendCommands(getChildSwitchCmds(0x00, dni))
 }
 
@@ -456,7 +448,7 @@ private getChildSwitchCmds(value, dni) {
 }
 
 def childRefresh(dni) {
-	logger("childRefresh($dni)...",LoggerLevel.TRACE)
+	logger "childRefresh($dni)..."
 	sendCommands(getRefreshCmds(dni))
 }
 
@@ -469,7 +461,7 @@ private executeSendEvent(child, evt) {
 		if (child) {
 			if (evt.descriptionText) {
 				evt.descriptionText = evt.descriptionText.replace(device.displayName, child.displayName)
-	            logger("${evt.descriptionText}",LoggerLevel.TRACE)
+				logger "${evt.descriptionText}"
 			}
 			child.sendEvent(evt)						
 		}
@@ -555,7 +547,7 @@ def installed() {
  *  within two seconds. See: https://community.smartthings.com/t/updated-being-called-twice/62912
  **/
 def updated() {
-    logger("updated()",LoggerLevel.TRACE)
+    logger("updated()","trace")
 
     def cmds = []
 
@@ -599,7 +591,7 @@ def updated() {
         return sendCommands(cmds)
     }
     else {
-        logger("updated(): Ran within last 2 seconds so aborting.",LoggerLevel.DEBUG)
+        logger("updated(): Ran within last 2 seconds so aborting.","debug")
     }
 }
 
@@ -618,7 +610,7 @@ def updated() {
  *   String      description        The raw message from the device.
  **/
 def parse(description) {
-    logger("parse(): Parsing raw message: ${description}",LoggerLevel.TRACE)
+    logger("parse(): Parsing raw message: ${description}","trace")
 
     def result = []
 
@@ -626,7 +618,7 @@ def parse(description) {
     if (cmd) {
         result += zwaveEvent(cmd)
     } else {
-        logger("parse(): Could not parse raw message: ${description}",LoggerLevel.ERROR)
+        logger("parse(): Could not parse raw message: ${description}","error")
     }
     return result
 }
@@ -653,17 +645,17 @@ def parse(description) {
  *  Example: BasicReport(value: 255)
  **/
 def zwaveEvent(physicalgraph.zwave.commands.basicv1.BasicReport cmd, endPoint=0) {
-    logger("zwaveEvent(): Basic Report received: ${cmd}",LoggerLevel.TRACE)
+    logger("zwaveEvent(): Basic Report received: ${cmd}","trace")
 
     def result = []
 
     def switchValue = (cmd.value ? "on" : "off")
     def switchEvent = createEvent(name: "switch", value: switchValue)
-    if (switchEvent.isStateChange) logger("Switch turned ${switchValue}.",LoggerLevel.INFO)
+    if (switchEvent.isStateChange) logger("Switch turned ${switchValue}.","info")
     result << switchEvent
 
     if ( switchEvent.isStateChange & (switchValue == "on") & (state.autoOffTime > 0) ) {
-        logger("Scheduling Auto-off in ${state.autoOffTime} seconds.",LoggerLevel.INFO)
+        logger("Scheduling Auto-off in ${state.autoOffTime} seconds.","info")
         runIn(state.autoOffTime,autoOff)
     }
     
@@ -694,17 +686,17 @@ def zwaveEvent(physicalgraph.zwave.commands.basicv1.BasicReport cmd, endPoint=0)
  *  Example: ApplicationBusy(status: 0, waitTime: 0)
  **/
 def zwaveEvent(physicalgraph.zwave.commands.applicationstatusv1.ApplicationBusy cmd) {
-    logger("zwaveEvent(): Application Busy received: ${cmd}",LoggerLevel.TRACE)
+    logger("zwaveEvent(): Application Busy received: ${cmd}","trace")
 
     switch(cmd.status) {
         case 0:
-        logger("Device is busy. Try again later.",LoggerLevel.WARN)
+        logger("Device is busy. Try again later.","warn")
         break
         case 1:
-        logger("Device is busy. Retry in ${cmd.waitTime} seconds.",LoggerLevel.WARN)
+        logger("Device is busy. Retry in ${cmd.waitTime} seconds.","warn")
         break
         case 2:
-        logger("Device is busy. Request is queued.",LoggerLevel.WARN)
+        logger("Device is busy. Request is queued.","warn")
         break
     }
 }
@@ -724,8 +716,8 @@ def zwaveEvent(physicalgraph.zwave.commands.applicationstatusv1.ApplicationBusy 
  *  Example: ApplicationRejectedRequest(status: 0)
  **/
 def zwaveEvent(physicalgraph.zwave.commands.applicationstatusv1.ApplicationRejectedRequest cmd) {
-    //logger("zwaveEvent(): Application Rejected Request received: ${cmd}",LoggerLevel.TRACE)
-    logger("A command was rejected. Most likely, RF Protection Mode is set to 'No Control'.",LoggerLevel.WARN)
+    //logger("zwaveEvent(): Application Rejected Request received: ${cmd}","trace")
+    logger("A command was rejected. Most likely, RF Protection Mode is set to 'No Control'.","warn")
 }
 
 /**
@@ -743,7 +735,7 @@ def zwaveEvent(physicalgraph.zwave.commands.applicationstatusv1.ApplicationRejec
  *  Example: SwitchBinaryReport(value: 255)
  **/
 def zwaveEvent(physicalgraph.zwave.commands.switchbinaryv1.SwitchBinaryReport cmd, endPoint=0) {
-    logger("zwaveEvent(): Switch Binary Report received: ${cmd}",LoggerLevel.TRACE)
+    logger("zwaveEvent(): Switch Binary Report received: ${cmd}","trace")
     
     def switchValue = (cmd.value ? "on" : "off")
 
@@ -751,11 +743,11 @@ def zwaveEvent(physicalgraph.zwave.commands.switchbinaryv1.SwitchBinaryReport cm
 
     def switchName =  (endpoint != 0) ? "ch${endPoint}Switch" : "switch"
     def switchEvent = createEvent(name: switchName, value: switchValue)
-    if (switchEvent.isStateChange) logger("Switch turned ${switchValue}.",LoggerLevel.INFO)
+    if (switchEvent.isStateChange) logger("Switch turned ${switchValue}.","info")
     result << switchEvent
 
     if ( switchEvent.isStateChange & (switchValue == "on") & (state.autoOffTime > 0) ) {
-        logger("Scheduling Auto-off in ${state.autoOffTime} seconds.",LoggerLevel.INFO)
+        logger("Scheduling Auto-off in ${state.autoOffTime} seconds.","info")
         runIn(state.autoOffTime,autoOff)
     }
 
@@ -786,7 +778,7 @@ def zwaveEvent(physicalgraph.zwave.commands.switchbinaryv1.SwitchBinaryReport cm
  *  Example: SwitchAllReport(mode: 255)
  **/
 def zwaveEvent(physicalgraph.zwave.commands.switchallv1.SwitchAllReport cmd) {
-    logger("zwaveEvent(): Switch All Report received: ${cmd}",LoggerLevel.TRACE)
+    logger("zwaveEvent(): Switch All Report received: ${cmd}","trace")
 
     state.switchAllModeCache = cmd.mode
 
@@ -808,7 +800,7 @@ def zwaveEvent(physicalgraph.zwave.commands.switchallv1.SwitchAllReport cmd) {
                 msg = "Device is included in the all on/all off functionality."
                 break
     }
-    logger("Switch All Mode: ${msg}",LoggerLevel.INFO)
+    logger("Switch All Mode: ${msg}","info")
 
     updateSyncPending()
 }
@@ -844,7 +836,7 @@ def zwaveEvent(physicalgraph.zwave.commands.switchallv1.SwitchAllReport cmd) {
  *    Boolean        scale2                      ???
  **/
 def zwaveEvent(physicalgraph.zwave.commands.meterv3.MeterReport cmd, endPoint=0) {
-    logger("zwaveEvent(): Meter Report received: ${cmd}",LoggerLevel.TRACE)
+    logger("zwaveEvent(): Meter Report received: ${cmd}","trace")
 
     def result = []
 
@@ -854,19 +846,19 @@ def zwaveEvent(physicalgraph.zwave.commands.meterv3.MeterReport cmd, endPoint=0)
                 case 0:  // Accumulated Energy (kWh):
                     result << createEvent(name: "energy", value: cmd.scaledMeterValue, unit: "kWh", displayed: true)
                     result << createEvent(name: "dispEnergy", value: String.format("%.2f",cmd.scaledMeterValue as BigDecimal) + " kWh", displayed: false)
-                    logger("New meter reading: Accumulated Energy: ${cmd.scaledMeterValue} kWh",LoggerLevel.INFO)
+                    logger("New meter reading: Accumulated Energy: ${cmd.scaledMeterValue} kWh","info")
                     break
 
                 case 1:  // Accumulated Energy (kVAh):
                     result << createEvent(name: "energy", value: cmd.scaledMeterValue, unit: "kVAh", displayed: true)
                     result << createEvent(name: "dispEnergy", value: String.format("%.2f",cmd.scaledMeterValue as BigDecimal) + " kVAh", displayed: false)
-                    logger("New meter reading: Accumulated Energy: ${cmd.scaledMeterValue} kVAh",LoggerLevel.INFO)
+                    logger("New meter reading: Accumulated Energy: ${cmd.scaledMeterValue} kVAh","info")
                     break
 
                 case 2:  // Instantaneous Power (Watts):
                     result << createEvent(name: "power", value: cmd.scaledMeterValue, unit: "W", displayed: true)
                     result << createEvent(name: "dispPower", value: String.format("%.1f",cmd.scaledMeterValue as BigDecimal) + " W", displayed: false)
-                    logger("New meter reading: Instantaneous Power: ${cmd.scaledMeterValue} W",LoggerLevel.INFO)
+                    logger("New meter reading: Instantaneous Power: ${cmd.scaledMeterValue} W","info")
 
                     // Request Switch Binary Report if power suggests switch state has changed:
                     def sw = (cmd.scaledMeterValue) ? "on" : "off"
@@ -875,35 +867,35 @@ def zwaveEvent(physicalgraph.zwave.commands.meterv3.MeterReport cmd, endPoint=0)
 
                 case 3:  // Accumulated Pulse Count:
                     result << createEvent(name: "pulseCount", value: cmd.scaledMeterValue, unit: "", displayed: true)
-                    logger("New meter reading: Accumulated Electricity Pulse Count: ${cmd.scaledMeterValue}",LoggerLevel.INFO)
+                    logger("New meter reading: Accumulated Electricity Pulse Count: ${cmd.scaledMeterValue}","info")
                     break
 
                 case 4:  // Instantaneous Voltage (Volts):
                     result << createEvent(name: "voltage", value: cmd.scaledMeterValue, unit: "V", displayed: true)
                     result << createEvent(name: "dispVoltage", value: String.format("%.1f",cmd.scaledMeterValue as BigDecimal) + " V", displayed: false)
-                    logger("New meter reading: Instantaneous Voltage: ${cmd.scaledMeterValue} V",LoggerLevel.INFO)
+                    logger("New meter reading: Instantaneous Voltage: ${cmd.scaledMeterValue} V","info")
                     break
 
                  case 5:  // Instantaneous Current (Amps):
                     result << createEvent(name: "current", value: cmd.scaledMeterValue, unit: "A", displayed: true)
                     result << createEvent(name: "dispCurrent", value: String.format("%.1f",cmd.scaledMeterValue as BigDecimal) + " V", displayed: false)
-                    logger("New meter reading: Instantaneous Current: ${cmd.scaledMeterValue} A",LoggerLevel.INFO)
+                    logger("New meter reading: Instantaneous Current: ${cmd.scaledMeterValue} A","info")
                     break
 
                  case 6:  // Instantaneous Power Factor:
                     result << createEvent(name: "powerFactor", value: cmd.scaledMeterValue, unit: "", displayed: true)
                     result << createEvent(name: "dispPowerFactor", value: String.format("%.1f",cmd.scaledMeterValue as BigDecimal), displayed: false)
-                    logger("New meter reading: Instantaneous Power Factor: ${cmd.scaledMeterValue}",LoggerLevel.INFO)
+                    logger("New meter reading: Instantaneous Power Factor: ${cmd.scaledMeterValue}","info")
                     break
 
                 default:
-                    logger("zwaveEvent(): Meter Report with unhandled scale: ${cmd}",LoggerLevel.WARN)
+                    logger("zwaveEvent(): Meter Report with unhandled scale: ${cmd}","warn")
                     break
             }
             break
 
         default:
-            logger("zwaveEvent(): Meter Report with unhandled meterType: ${cmd}",LoggerLevel.WARN)
+            logger("zwaveEvent(): Meter Report with unhandled meterType: ${cmd}","warn")
             break
     }
     
@@ -938,7 +930,7 @@ def zwaveEvent(physicalgraph.zwave.commands.meterv3.MeterReport cmd, endPoint=0)
  *  Example: Crc16Encap(checksum: 125, command: 2, commandClass: 50, data: [33, 68, 0, 0, 0, 194, 0, 0, 77])
  **/
 def zwaveEvent(physicalgraph.zwave.commands.crc16encapv1.Crc16Encap cmd) {
-    logger("zwaveEvent(): CRC-16 Encapsulation Command received: ${cmd}",LoggerLevel.TRACE)
+    logger("zwaveEvent(): CRC-16 Encapsulation Command received: ${cmd}","trace")
 
     def versions = getCommandClassVersions()
     def version = versions[cmd.commandClass as Integer]
@@ -947,7 +939,7 @@ def zwaveEvent(physicalgraph.zwave.commands.crc16encapv1.Crc16Encap cmd) {
     // TO DO: It should be possible to replace the lines above with this line soon...
     //def encapsulatedCommand = cmd.encapsulatedCommand(getCommandClassVersions())
     if (!encapsulatedCommand) {
-        logger("zwaveEvent(): Could not extract command from ${cmd}",LoggerLevel.ERROR)
+        logger("zwaveEvent(): Could not extract command from ${cmd}","error")
     } else {
         return zwaveEvent(encapsulatedCommand)
     }
@@ -973,7 +965,7 @@ def zwaveEvent(physicalgraph.zwave.commands.crc16encapv1.Crc16Encap cmd) {
  *            scaledConfigurationValue: 10, size: 1)
  **/
 def zwaveEvent(physicalgraph.zwave.commands.configurationv1.ConfigurationReport cmd) {
-    logger("zwaveEvent(): Configuration Report received: ${cmd}",LoggerLevel.TRACE)
+    logger("zwaveEvent(): Configuration Report received: ${cmd}","trace")
 
     def result = []
 
@@ -983,14 +975,14 @@ def zwaveEvent(physicalgraph.zwave.commands.configurationv1.ConfigurationReport 
     def signInfo = (paramMd?.isSigned) ? "SIGNED" : "UNSIGNED"
 
     state."paramCache${cmd.parameterNumber}" = paramValue
-    logger("Parameter #${cmd.parameterNumber} [${paramMd?.name}] has value: ${paramValue} [${signInfo}]",LoggerLevel.INFO)
+    logger("Parameter #${cmd.parameterNumber} [${paramMd?.name}] has value: ${paramValue} [${signInfo}]","info")
     updateSyncPending()
 
     // Update wheelStatus if parameter #2:
     if (cmd.parameterNumber == 2) {
         def wheelStatus = getWheelColours()[paramValue]
         def wheelEvent = createEvent(name: "wheelStatus", value: wheelStatus)
-        if (wheelEvent.isStateChange) logger("Room Colour Wheel changed to ${wheelStatus}.",LoggerLevel.INFO)
+        if (wheelEvent.isStateChange) logger("Room Colour Wheel changed to ${wheelStatus}.","info")
         result << wheelEvent
     }
 
@@ -1014,7 +1006,7 @@ def zwaveEvent(physicalgraph.zwave.commands.configurationv1.ConfigurationReport 
  *  Example: AlarmReport(alarmLevel: 1, alarmType: 1)
  **/
 def zwaveEvent(physicalgraph.zwave.commands.alarmv1.AlarmReport cmd) {
-    logger("zwaveEvent(): Alarm Report received: ${cmd}",LoggerLevel.TRACE)
+    logger("zwaveEvent(): Alarm Report received: ${cmd}","trace")
 
     def result = []
 
@@ -1022,14 +1014,14 @@ def zwaveEvent(physicalgraph.zwave.commands.alarmv1.AlarmReport cmd) {
         case 1: // Current Leakage:
             if (!state.ignoreCurrentLeakageAlarms) { result << createEvent(name: "fault", value: "currentLeakage",
               descriptionText: "Current Leakage detected!", displayed: true) }
-            logger("Current Leakage detected!",LoggerLevel.WARN)
+            logger("Current Leakage detected!","warn")
             break
 
         // TO DO: Check other alarm codes.
 
         default: // Over-current:
             result << createEvent(name: "fault", value: "current", descriptionText: "Over-current detected!", displayed: true)
-            logger("Over-current detected!",LoggerLevel.WARN)
+            logger("Over-current detected!","warn")
             break
     }
 
@@ -1048,7 +1040,7 @@ def zwaveEvent(physicalgraph.zwave.commands.alarmv1.AlarmReport cmd) {
  *   productId: 2, productTypeId: 2)
  **/
 def zwaveEvent(physicalgraph.zwave.commands.manufacturerspecificv2.ManufacturerSpecificReport cmd) {
-    logger("zwaveEvent(): Manufacturer-Specific Report received: ${cmd}",LoggerLevel.TRACE)
+    logger("zwaveEvent(): Manufacturer-Specific Report received: ${cmd}","trace")
 
     // Display as hex strings:
     def manufacturerIdDisp = String.format("%04X",cmd.manufacturerId)
@@ -1056,7 +1048,7 @@ def zwaveEvent(physicalgraph.zwave.commands.manufacturerspecificv2.ManufacturerS
     def productTypeIdDisp = String.format("%04X",cmd.productTypeId)
 
     logger("Manufacturer-Specific Report: Manufacturer ID: ${manufacturerIdDisp}, Manufacturer Name: ${cmd.manufacturerName}" +
-    ", Product Type ID: ${productTypeIdDisp}, Product ID: ${productIdDisp}",LoggerLevel.INFO)
+    ", Product Type ID: ${productTypeIdDisp}, Product ID: ${productIdDisp}","info")
 
     updateDataValue("manufacturerName",cmd.manufacturerName)
     updateDataValue("manufacturerId",manufacturerIdDisp)
@@ -1079,7 +1071,7 @@ def zwaveEvent(physicalgraph.zwave.commands.manufacturerspecificv2.ManufacturerS
  *  Example: ProtectionReport(localProtectionState: 0, reserved01: 0, reserved11: 0, rfProtectionState: 0)
  **/
 def zwaveEvent(physicalgraph.zwave.commands.protectionv2.ProtectionReport cmd) {
-    logger("zwaveEvent(): Protection Report received: ${cmd}",LoggerLevel.TRACE)
+    logger("zwaveEvent(): Protection Report received: ${cmd}","trace")
 
     def result = []
 
@@ -1089,16 +1081,16 @@ def zwaveEvent(physicalgraph.zwave.commands.protectionv2.ProtectionReport cmd) {
     def lpStates = ["unprotected","sequence","noControl"]
     def lpValue = lpStates[cmd.localProtectionState]
     def lpEvent = createEvent(name: "localProtectionMode", value: lpValue)
-    if (lpEvent.isStateChange) logger("Local Protection set to ${lpValue}.",LoggerLevel.INFO)
+    if (lpEvent.isStateChange) logger("Local Protection set to ${lpValue}.","info")
     result << lpEvent
 
     def rfpStates = ["unprotected","noControl","noResponse"]
     def rfpValue = rfpStates[cmd.rfProtectionState]
     def rfpEvent = createEvent(name: "rfProtectionMode", value: rfpValue)
-    if (rfpEvent.isStateChange) logger("RF Protection set to ${rfpValue}.",LoggerLevel.INFO)
+    if (rfpEvent.isStateChange) logger("RF Protection set to ${rfpValue}.","info")
     result << rfpEvent
 
-    logger("Protection Report: Local Protection: ${lpValue}, RF Protection: ${rfpValue}",LoggerLevel.INFO)
+    logger("Protection Report: Local Protection: ${lpValue}, RF Protection: ${rfpValue}","info")
     updateSyncPending()
 
     return result
@@ -1117,7 +1109,7 @@ def zwaveEvent(physicalgraph.zwave.commands.protectionv2.ProtectionReport cmd) {
  *  Example: AssociationReport(groupingIdentifier: 1, maxNodesSupported: 1, nodeId: [1], reportsToFollow: 0)
  **/
 def zwaveEvent(physicalgraph.zwave.commands.associationv2.AssociationReport cmd) {
-    logger("zwaveEvent(): Association Report received: ${cmd}",LoggerLevel.TRACE)
+    logger("zwaveEvent(): Association Report received: ${cmd}","trace")
 
     state."assocGroupCache${cmd.groupingIdentifier}" = cmd.nodeId
 
@@ -1125,7 +1117,7 @@ def zwaveEvent(physicalgraph.zwave.commands.associationv2.AssociationReport cmd)
     def hexArray  = []
     cmd.nodeId.each { hexArray.add(String.format("%02X", it)) };
     def assocGroupMd = getAssocGroupsMd().find( { it.id == cmd.groupingIdentifier })
-    logger("Association Group ${cmd.groupingIdentifier} [${assocGroupMd?.name}] contains nodes: ${hexArray} (hexadecimal format)",LoggerLevel.INFO)
+    logger("Association Group ${cmd.groupingIdentifier} [${assocGroupMd?.name}] contains nodes: ${hexArray} (hexadecimal format)","info")
 
     updateSyncPending()
 }
@@ -1149,7 +1141,7 @@ def zwaveEvent(physicalgraph.zwave.commands.associationv2.AssociationReport cmd)
  *   zWaveProtocolSubVersion: 5, zWaveProtocolVersion: 4)
  **/
 def zwaveEvent(physicalgraph.zwave.commands.versionv1.VersionReport cmd) {
-    logger("zwaveEvent(): Version Report received: ${cmd}",LoggerLevel.TRACE)
+    logger("zwaveEvent(): Version Report received: ${cmd}","trace")
 
     def zWaveLibraryTypeDisp  = String.format("%02X",cmd.zWaveLibraryType)
     def zWaveLibraryTypeDesc  = ""
@@ -1205,7 +1197,7 @@ def zwaveEvent(physicalgraph.zwave.commands.versionv1.VersionReport cmd) {
 
     logger("Version Report: Application Version: ${applicationVersionDisp}, " +
            "Z-Wave Protocol Version: ${zWaveProtocolVersionDisp}, " +
-           "Z-Wave Library Type: ${zWaveLibraryTypeDisp} (${zWaveLibraryTypeDesc})",LoggerLevel.INFO)
+           "Z-Wave Library Type: ${zWaveLibraryTypeDisp} (${zWaveLibraryTypeDesc})","info")
 
     updateDataValue("applicationVersion","${cmd.applicationVersion}")
     updateDataValue("applicationSubVersion","${cmd.applicationSubVersion}")
@@ -1230,7 +1222,7 @@ def zwaveEvent(physicalgraph.zwave.commands.versionv1.VersionReport cmd) {
  *  Example: IndicatorReport(value: 0)
  **/
 def zwaveEvent(physicalgraph.zwave.commands.indicatorv1.IndicatorReport cmd) {
-    logger("zwaveEvent(): Indicator Report received: ${cmd}",LoggerLevel.TRACE)
+    logger("zwaveEvent(): Indicator Report received: ${cmd}","trace")
 }
 
 /**
@@ -1239,7 +1231,7 @@ def zwaveEvent(physicalgraph.zwave.commands.indicatorv1.IndicatorReport cmd) {
  *  Called for all commands that aren't handled above.
  **/
 def zwaveEvent(physicalgraph.zwave.Command cmd) {
-    logger("zwaveEvent(): No handler for command: ${cmd}",LoggerLevel.ERROR)
+    logger("zwaveEvent(): No handler for command: ${cmd}","error")
 }
 
 def zwaveEvent(physicalgraph.zwave.commands.multichannelv3.MultiChannelCmdEncap cmd) {
@@ -1249,7 +1241,7 @@ def zwaveEvent(physicalgraph.zwave.commands.multichannelv3.MultiChannelCmdEncap 
 		return zwaveEvent(encapsulatedCommand, cmd.sourceEndPoint)
 	}
 	else {
-		logger("Unable to get encapsulated command: $cmd", "error")
+		logger "Unable to get encapsulated command: $cmd"
 		return []
 	}
 }
@@ -1265,7 +1257,7 @@ def zwaveEvent(physicalgraph.zwave.commands.multichannelv3.MultiChannelCmdEncap 
  *  Turn the switch on.
  **/
 def on() {
-    logger("on(): Turning switch on.",LoggerLevel.INFO)
+    logger("on(): Turning switch on.","info")
         sendCommands([
         zwave.basicV1.basicSet(value: 0xFF).format(),
         zwave.switchBinaryV1.switchBinaryGet().format(),
@@ -1280,7 +1272,7 @@ def on() {
  *  Turn the switch off.
  **/
 def off() {
-    logger("off(): Turning switch off.",LoggerLevel.INFO)
+    logger("off(): Turning switch off.","info")
     sendCommands([
         zwave.basicV1.basicSet(value: 0x00).format(),
         zwave.switchBinaryV1.switchBinaryGet().format(),
@@ -1295,7 +1287,7 @@ def off() {
  *  Calls refresh().
  **/
 def poll() {
-    logger("poll()",LoggerLevel.TRACE)
+    logger("poll()","trace")
     refresh()
 }
 
@@ -1316,7 +1308,7 @@ private getRefreshCmds(dni=null) {
  **/
  
 def refresh() {
-    logger("refresh()",LoggerLevel.TRACE)
+    logger("refresh()","trace")
     def cmds = getRefreshCmds()
     cmds += zwave.configurationV1.configurationGet(parameterNumber: 2) // Wheel Status
     
@@ -1346,7 +1338,7 @@ def refresh() {
  *  Causes the Circle LED to blink for ~20 seconds.
  **/
 def blink() {
-    logger("blink(): Blinking Circle LED",LoggerLevel.INFO)
+    logger("blink(): Blinking Circle LED","info")
     sendCommands([zwave.indicatorV1.indicatorSet(value: 255)])
 }
 
@@ -1356,7 +1348,7 @@ def blink() {
  *  Calls off(), but with additional log message.
  **/
 def autoOff() {
-    logger("autoOff(): Automatically turning off the device.",LoggerLevel.INFO)
+    logger("autoOff(): Automatically turning off the device.","info")
     off()
 }
 
@@ -1368,7 +1360,7 @@ def autoOff() {
  *  Note: this used to be part of the official 'Energy Meter' capability, but isn't anymore.
  **/
 def reset() {
-    logger("reset()",LoggerLevel.TRACE)
+    logger("reset()","trace")
     resetEnergy()
 }
 
@@ -1378,7 +1370,7 @@ def reset() {
  *  Reset the Accumulated Energy figure held in the device.
  **/
 def resetEnergy() {
-    logger("resetEnergy(): Resetting Accumulated Energy",LoggerLevel.INFO)
+    logger("resetEnergy(): Resetting Accumulated Energy","info")
 
     state.energyLastReset = new Date().format("YYYY/MM/dd \n HH:mm:ss", location.timeZone)
     sendEvent(name: "energyLastReset", value: state.energyLastReset, descriptionText: "Accumulated Energy Reset")
@@ -1395,7 +1387,7 @@ def resetEnergy() {
  *  Reset fault alarm to 'clear'.
  **/
 def resetFault() {
-    logger("resetFault(): Resetting fault alarm.",LoggerLevel.INFO)
+    logger("resetFault(): Resetting fault alarm.","info")
     sendEvent(name: "fault", value: "clear", descriptionText: "Fault alarm cleared", displayed: true)
 }
 
@@ -1412,21 +1404,21 @@ def resetFault() {
  *   "noControl"    Physical switches are disabled.
  **/
 def setLocalProtectionMode(localProtectionMode) {
-    logger("setLocalProtectionMode(${localProtectionMode})",LoggerLevel.TRACE)
+    logger("setLocalProtectionMode(${localProtectionMode})","trace")
 
     switch(localProtectionMode.toLowerCase()) {
         case "unprotected":
             state.protectLocalTarget = 0
             break
         case "sequence":
-            logger("setLocalProtectionMode(): Protection by sequence is not supported by this device.",LoggerLevel.WARN)
+            logger("setLocalProtectionMode(): Protection by sequence is not supported by this device.","warn")
             state.protectLocalTarget = 2
             break
         case "nocontrol":
             state.protectLocalTarget = 2
             break
         default:
-            logger("setLocalProtectionMode(): Unknown protection mode: ${localProtectionMode}.",LoggerLevel.WARN)
+            logger("setLocalProtectionMode(): Unknown protection mode: ${localProtectionMode}.","warn")
     }
     sync()
 }
@@ -1437,7 +1429,7 @@ def setLocalProtectionMode(localProtectionMode) {
  *  Toggle local (physical) protection mode between "unprotected" and "noControl" modes.
  **/
 def toggleLocalProtectionMode() {
-    logger("toggleLocalProtectionMode()",LoggerLevel.TRACE)
+    logger("toggleLocalProtectionMode()","trace")
 
     if (device.latestValue("localProtectionMode") != "unprotected") {
         setLocalProtectionMode("unprotected")
@@ -1460,7 +1452,7 @@ def toggleLocalProtectionMode() {
  *   "noResponse"    Device ignores wireless commands.
  **/
 def setRfProtectionMode(rfProtectionMode) {
-    logger("setRfProtectionMode(${rfProtectionMode})",LoggerLevel.TRACE)
+    logger("setRfProtectionMode(${rfProtectionMode})","trace")
 
     switch(rfProtectionMode.toLowerCase()) {
         case "unprotected":
@@ -1470,11 +1462,11 @@ def setRfProtectionMode(rfProtectionMode) {
             state.protectRfTarget = 1
             break
         case "noresponse":
-            logger("setRfProtectionMode(): NoResponse mode is not supported by this device.",LoggerLevel.WARN)
+            logger("setRfProtectionMode(): NoResponse mode is not supported by this device.","warn")
             state.protectRfTarget = 1
             break
         default:
-            logger("setRfProtectionMode(): Unknown protection mode: ${rfProtectionMode}.",LoggerLevel.WARN)
+            logger("setRfProtectionMode(): Unknown protection mode: ${rfProtectionMode}.","warn")
     }
     sync()
 }
@@ -1485,7 +1477,7 @@ def setRfProtectionMode(rfProtectionMode) {
  *  Toggle RF (wireless) protection mode between "unprotected" and "noControl" modes.
  **/
 def toggleRfProtectionMode() {
-    logger("toggleRfProtectionMode()",LoggerLevel.TRACE)
+    logger("toggleRfProtectionMode()","trace")
 
     if (device.latestValue("rfProtectionMode") != "unprotected") {
         setRfProtectionMode("unprotected")
@@ -1546,28 +1538,28 @@ private sendCommands(cmds, delay=200) {
  *    messages by sending events for the device's logMessage attribute.
  *    Configured using configLoggingLevelIDE and configLoggingLevelDevice preferences.
  **/
-private logger(msg, LoggerLevel = LoggerLevel.DEBUG) {
+private logger(msg, level = "debug") {
 
     switch(level) {
-        case ERROR:
+        case "error":
             if (state.loggingLevelIDE >= 1) log.error msg
             if (state.loggingLevelDevice >= 1) sendEvent(name: "logMessage", value: "ERROR: ${msg}", displayed: false, isStateChange: true)
             break
 
-        case WARN:
+        case "warn":
             if (state.loggingLevelIDE >= 2) log.warn msg
             if (state.loggingLevelDevice >= 2) sendEvent(name: "logMessage", value: "WARNING: ${msg}", displayed: false, isStateChange: true)
             break
 
-        case INFO:
+        case "info":
             if (state.loggingLevelIDE >= 3) log.info msg
             break
 
-        case DEBUG:
+        case "debug":
             if (state.loggingLevelIDE >= 4) log.debug msg
             break
 
-        case TRACE:
+        case "trace":
             if (state.loggingLevelIDE >= 5) log.trace msg
             break
 
@@ -1590,7 +1582,7 @@ private logger(msg, LoggerLevel = LoggerLevel.DEBUG) {
  *   forceAll    Force all items to be synced, otherwise only changed items will be synced.
  **/
 private sync(forceAll = false) {
-    logger("sync(): Syncing configuration with the physical device.", LoggerLevel.INFO)
+    logger("sync(): Syncing configuration with the physical device.","info")
 
     def cmds = []
     def syncPending = 0
@@ -1607,7 +1599,7 @@ private sync(forceAll = false) {
         if ( (state."paramTarget${it.id}" != null) & (state."paramCache${it.id}" != state."paramTarget${it.id}") ) {
             cmds << zwave.configurationV1.configurationSet(parameterNumber: it.id, size: it.size, scaledConfigurationValue: state."paramTarget${it.id}".toInteger())
             cmds << zwave.configurationV1.configurationGet(parameterNumber: it.id)
-            logger("sync(): Syncing parameter #${it.id} [${it.name}]: New Value: " + state."paramTarget${it.id}",LoggerLevel.INFO)
+            logger("sync(): Syncing parameter #${it.id} [${it.name}]: New Value: " + state."paramTarget${it.id}","info")
             syncPending++
             }
     }
@@ -1620,7 +1612,7 @@ private sync(forceAll = false) {
             // Display to user in hex format (same as IDE):
             def targetNodesHex  = []
             targetNodes.each { targetNodesHex.add(String.format("%02X", it)) }
-            logger("sync(): Syncing Association Group #${it.id} [${it.name}]: Destinations: ${targetNodesHex}",LoggerLevel.INFO)
+            logger("sync(): Syncing Association Group #${it.id} [${it.name}]: Destinations: ${targetNodesHex}","info")
             if (it.multiChannel) {
                 cmds << zwave.multiChannelAssociationV2.multiChannelAssociationRemove(groupingIdentifier: it.id, nodeId: []) // Remove All
                 cmds << zwave.multiChannelAssociationV2.multiChannelAssociationSet(groupingIdentifier: it.id, nodeId: targetNodes)
@@ -1638,14 +1630,14 @@ private sync(forceAll = false) {
     if ( (state.protectLocalTarget != null) & (state.protectRfTarget != null)
       & ( (state.protectLocalCache != state.protectLocalTarget) || (state.protectRfCache != state.protectRfTarget) ) ) {
 
-        logger("sync(): Syncing Protection State: Local Protection: ${state.protectLocalTarget}, RF Protection: ${state.protectRfTarget}",LoggerLevel.INFO)
+        logger("sync(): Syncing Protection State: Local Protection: ${state.protectLocalTarget}, RF Protection: ${state.protectRfTarget}","info")
         cmds << zwave.protectionV2.protectionSet(localProtectionState : state.protectLocalTarget, rfProtectionState: state.protectRfTarget)
         cmds << zwave.protectionV2.protectionGet()
         syncPending++
     }
 
     if ( (state.switchAllModeTarget != null) & (state.switchAllModeCache != state.switchAllModeTarget) ) {
-        logger("sync(): Syncing SwitchAll Mode: ${state.switchAllModeTarget}",LoggerLevel.INFO)
+        logger("sync(): Syncing SwitchAll Mode: ${state.switchAllModeTarget}","info")
         cmds << zwave.switchAllV1.switchAllSet(mode: state.switchAllModeTarget)
         cmds << zwave.switchAllV1.switchAllGet()
         syncPending++
@@ -1688,8 +1680,8 @@ private updateSyncPending() {
         syncPending++
     }
 
-    logger("updateSyncPending(): syncPending: ${syncPending}", LoggerLevel.DEBUG)
-    if ((syncPending == 0) & (device.latestValue("syncPending") > 0)) logger("Sync Complete.", LoggerLevel.INFO)
+    logger("updateSyncPending(): syncPending: ${syncPending}", "debug")
+    if ((syncPending == 0) & (device.latestValue("syncPending") > 0)) logger("Sync Complete.", "info")
     sendEvent(name: "syncPending", value: syncPending, displayed: false)
 }
 
@@ -1786,7 +1778,7 @@ private byteArrayToUInt(byteArray) {
  *  Called from 'test' tile.
  **/
 private test() {
-    logger("test()",LoggerLevel.TRACE)
+    logger("test()","trace")
 
     def cmds = []
 
