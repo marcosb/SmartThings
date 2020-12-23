@@ -1,5 +1,5 @@
 /*****************************************************************************************************************
- *  Copyright: David Lomas (codersaur), Marcos Boyington (marcosb)
+ *  Copyright: David Lomas (codersaur), Marcos B (marcosb)
  *
  *  Name: GreenWave PowerNode (6 outlet) Advanced
  *
@@ -214,16 +214,6 @@ metadata {
             )
 
             input (
-                name: "configAutoOffTime",
-                title: "Timer Function (Auto-off):\nAutomatically switch off the device after a specified time.\n" +
-                "Values:\n0 = Function Disabled\n1-86400 = time in seconds\nDefault Value: 0",
-                type: "number",
-                range: "0..86400",
-                defaultValue: 0,
-                required: false
-            )
-
-            input (
                 name: "configIgnoreCurrentLeakageAlarms",
                 title: "Ignore Current Leakage Alarms:\nDo not raise a fault on a current leakage alarm.",
                 type: "boolean",
@@ -243,8 +233,6 @@ metadata {
                 defaultValue: "255",
                 required: false
             )
-
-		    getBoolInput("debugOutput", "Enable Debug Logging", true)
         }
 
         generatePrefsParams()
@@ -441,10 +429,12 @@ def childOff(dni) {
 
 private getChildSwitchCmds(value, dni) {
 	def endPoint = getEndPoint(dni)	
-	return delayBetween([
+	return [
 		switchBinarySetCmd(value, endPoint),
-		switchBinaryGetCmd(endPoint)
-	], 500)
+		switchBinaryGetCmd(endPoint),
+        "delay 3000",
+		meterGetCmd(meterEnergy, endPoint),
+		meterGetCmd(meterPower, endPoint)]
 }
 
 def childRefresh(dni) {
@@ -477,17 +467,12 @@ def updateSecondaryStatus() {
 		def power = getAttrVal("power", child) ?: 0
 		def energy = getAttrVal("energy", child) ?: 0
 		def duration = getAttrVal("energyDuration", child) ?: ""
-		// def active = getAttrVal("acceleration", child) ?: "inactive"
 		
 		if (duration) {
 			duration = " - ${duration}"
 		}
 		
-		def status = ""
-		
-		// status = settings?.displayAcceleration ? "${active.toUpperCase()} / " : ""
-		
-		status =  "${status}${power} ${meterPower.unit} / ${energy} ${meterEnergy.unit}${duration}"
+		def status = "${status}${power} ${meterPower.unit} / ${energy} ${meterEnergy.unit}${duration}"
 		
 		if (getAttrVal("secondaryStatus", child) != "${status}") {
 			executeSendEvent(child, createEvent(name: "secondaryStatus", value: status, displayed: false))
@@ -515,10 +500,8 @@ def installed() {
     state.loggingLevelDevice  = 2
     state.useSecurity = false
     state.useCrc16 = true
-    state.fwVersion = 4.23 // Will be updated when versionReport is received.
     state.protectLocalTarget = 0
     state.protectRfTarget = 0
-    state.autoOffTime = 0
 
     sendEvent(name: "fault", value: "clear", displayed: false)
     
@@ -564,12 +547,12 @@ def updated() {
         state.loggingLevelIDE     = (settings.configLoggingLevelIDE) ? settings.configLoggingLevelIDE.toInteger() : 3
         state.loggingLevelDevice  = (settings.configLoggingLevelDevice) ? settings.configLoggingLevelDevice.toInteger(): 2
         state.syncAll             = ("true" == settings.configSyncAll)
-        state.autoOffTime         = (settings.configAutoOffTime) ? settings.configAutoOffTime.toInteger() : 0
         state.ignoreCurrentLeakageAlarms = ("true" == settings.configIgnoreCurrentLeakageAlarms)
         state.switchAllModeTarget = (settings.configSwitchAllMode) ? settings.configSwitchAllMode.toInteger() : 255
+        state.emulateRestoreSwitchState = settings?.emulateRestoreSwitchState ? true : false
 
         // Update Parameter target values:
-        getParamsMd(state).findAll( { !it.readonly & (it.fwVersion <= state.fwVersion) } ).each { // Exclude readonly/newer parameters.
+        getParamsMd().findAll( { !it.readonly } ).each { // Exclude readonly/newer parameters.
             state."paramTarget${it.id}" = settings."configParam${it.id}"?.toInteger()
         }
 
@@ -633,7 +616,6 @@ def parse(description) {
  *  The Basic Report command is used to advertise the status of the primary functionality of the device.
  *
  *  Action: Raise switch event and log an info message if state has changed.
- *    Schedule autoOff() if an autoOffTime is configured.
  *
  *  cmd attributes:
  *    Short    value
@@ -653,19 +635,8 @@ def zwaveEvent(physicalgraph.zwave.commands.basicv1.BasicReport cmd, endPoint=0)
     def switchEvent = createEvent(name: "switch", value: switchValue)
     if (switchEvent.isStateChange) logger("Switch turned ${switchValue}.","info")
     result << switchEvent
-
-    if ( switchEvent.isStateChange & (switchValue == "on") & (state.autoOffTime > 0) ) {
-        logger("Scheduling Auto-off in ${state.autoOffTime} seconds.","info")
-        runIn(state.autoOffTime,autoOff)
-    }
     
-    if (endPoint != 0) {
-	  def child = findChildByEndPoint(endPoint)
-      result.each { executeSendEvent(child, it) }
-      return []
-    } else {
-      return result
-    }
+    return resultPossiblyForEndpoint(result, endpoint)
 }
 
 /**
@@ -727,7 +698,6 @@ def zwaveEvent(physicalgraph.zwave.commands.applicationstatusv1.ApplicationRejec
  *  capability.
  *
  *  Action: Raise switch event and log an info message if state has changed.
- *    Schedule autoOff() if an autoOffTime is configured.
  *
  *  cmd attributes:
  *    Short   value   0xFF for on, 0x00 for off
@@ -740,24 +710,21 @@ def zwaveEvent(physicalgraph.zwave.commands.switchbinaryv1.SwitchBinaryReport cm
     def switchValue = (cmd.value ? "on" : "off")
 
     def result = []
+    def childResult = []
 
+    if (endPoint!=0 && state.emulateRestoreSwitchState) {
+      def currentValue = getAttrVal("switch", findChildByEndPoint(endPoint))
+      if (currentValue != switchValue) {
+        logger("Switch ${endPoint} has unexpected state, resetting to known value: ${currentValue}","info")
+        childResult << prepCommands([switchBinarySetCmd(currentValue == "on" ? 0xFF : 0x00, endPoint)])
+      }
+    }
     def switchName =  (endpoint != 0) ? "ch${endPoint}Switch" : "switch"
     def switchEvent = createEvent(name: switchName, value: switchValue)
     if (switchEvent.isStateChange) logger("Switch turned ${switchValue}.","info")
     result << switchEvent
 
-    if ( switchEvent.isStateChange & (switchValue == "on") & (state.autoOffTime > 0) ) {
-        logger("Scheduling Auto-off in ${state.autoOffTime} seconds.","info")
-        runIn(state.autoOffTime,autoOff)
-    }
-
-    if (endPoint != 0) {
-	  def child = findChildByEndPoint(endPoint)
-      result.each { executeSendEvent(child, it) }
-      return []
-    } else {
-      return result
-    }
+    return resultPossiblyForEndpoint(result, endpoint, childResult)
 }
 
 /**
@@ -836,9 +803,10 @@ def zwaveEvent(physicalgraph.zwave.commands.switchallv1.SwitchAllReport cmd) {
  *    Boolean        scale2                      ???
  **/
 def zwaveEvent(physicalgraph.zwave.commands.meterv3.MeterReport cmd, endPoint=0) {
-    logger("zwaveEvent(): Meter Report received: ${cmd}","trace")
+    logger("zwaveEvent(): Meter Report received: ${cmd} for ${endPoint}","trace")
 
     def result = []
+    def childResult = []
 
     switch (cmd.meterType) {
         case 1:  // Electric meter:
@@ -862,7 +830,11 @@ def zwaveEvent(physicalgraph.zwave.commands.meterv3.MeterReport cmd, endPoint=0)
 
                     // Request Switch Binary Report if power suggests switch state has changed:
                     def sw = (cmd.scaledMeterValue) ? "on" : "off"
-                    if ( device.latestValue("switch") != sw && endPoint == 0) { result << prepCommands([zwave.switchBinaryV1.switchBinaryGet()]) }
+                    if (endpoint != 0 && getAttrVal("switch", findChildByEndPoint(endPoint)) != sw) {
+                      childResult << prepCommands([switchBinaryGetCmd(endPoint)])
+                    } else if (endPoint == 0 && device.latestValue("switch") != sw) {
+                      result << prepCommands([zwave.switchBinaryV1.switchBinaryGet()])
+                    }
                     break
 
                 case 3:  // Accumulated Pulse Count:
@@ -901,13 +873,7 @@ def zwaveEvent(physicalgraph.zwave.commands.meterv3.MeterReport cmd, endPoint=0)
     
 	runIn(2, updateSecondaryStatus)
 
-    if (endPoint != 0) {
-	  def child = findChildByEndPoint(endPoint)
-      result.each { executeSendEvent(child, it) }
-      return []
-    } else {
-      return result
-    }
+    return resultPossiblyForEndpoint(result, endpoint, childResult)
 }
 
 /**
@@ -969,7 +935,7 @@ def zwaveEvent(physicalgraph.zwave.commands.configurationv1.ConfigurationReport 
 
     def result = []
 
-    def paramMd = getParamsMd(state).find( { it.id == cmd.parameterNumber })
+    def paramMd = getParamsMd().find( { it.id == cmd.parameterNumber })
     // Some values are treated as unsigned and some as signed, so we convert accordingly:
     def paramValue = (paramMd?.isSigned) ? cmd.scaledConfigurationValue : byteArrayToUInt(cmd.configurationValue)
     def signInfo = (paramMd?.isSigned) ? "SIGNED" : "UNSIGNED"
@@ -1128,7 +1094,7 @@ def zwaveEvent(physicalgraph.zwave.commands.associationv2.AssociationReport cmd)
  *  The Version Report Command is used to advertise the library type, protocol version, and application version.
  *
  *  Action: Publish values as device 'data' and log an info message.
- *          Store fwVersion as state.fwVersion.
+ *          Store firmwareVersion as device.firmwareVersion.
  *
  *  cmd attributes:
  *    Short  applicationSubVersion
@@ -1193,7 +1159,10 @@ def zwaveEvent(physicalgraph.zwave.commands.versionv1.VersionReport cmd) {
     def applicationVersionDisp = String.format("%d.%02d",cmd.applicationVersion,cmd.applicationSubVersion)
     def zWaveProtocolVersionDisp = String.format("%d.%02d",cmd.zWaveProtocolVersion,cmd.zWaveProtocolSubVersion)
 
-    state.fwVersion = new BigDecimal(applicationVersionDisp)
+    if (version != device.currentValue("firmwareVersion")) {
+		logger("Firmware: ${version}", "info")
+		sendEvent(name: "firmwareVersion", value: applicationVersionDisp, displayed:false)
+	}
 
     logger("Version Report: Application Version: ${applicationVersionDisp}, " +
            "Z-Wave Protocol Version: ${zWaveProtocolVersionDisp}, " +
@@ -1340,16 +1309,6 @@ def refresh() {
 def blink() {
     logger("blink(): Blinking Circle LED","info")
     sendCommands([zwave.indicatorV1.indicatorSet(value: 255)])
-}
-
-/**
- *  autoOff()
- *
- *  Calls off(), but with additional log message.
- **/
-def autoOff() {
-    logger("autoOff(): Automatically turning off the device.","info")
-    off()
 }
 
 /**
@@ -1542,25 +1501,25 @@ private logger(msg, level = "debug") {
 
     switch(level) {
         case "error":
-            if (state.loggingLevelIDE >= 1) log.error msg
-            if (state.loggingLevelDevice >= 1) sendEvent(name: "logMessage", value: "ERROR: ${msg}", displayed: false, isStateChange: true)
+            if (!state || state.loggingLevelIDE >= 1) log.error msg
+            if (state?.loggingLevelDevice >= 1) sendEvent(name: "logMessage", value: "ERROR: ${msg}", displayed: false, isStateChange: true)
             break
 
         case "warn":
-            if (state.loggingLevelIDE >= 2) log.warn msg
-            if (state.loggingLevelDevice >= 2) sendEvent(name: "logMessage", value: "WARNING: ${msg}", displayed: false, isStateChange: true)
+            if (state?.loggingLevelIDE >= 2) log.warn msg
+            if (state?.loggingLevelDevice >= 2) sendEvent(name: "logMessage", value: "WARNING: ${msg}", displayed: false, isStateChange: true)
             break
 
         case "info":
-            if (state.loggingLevelIDE >= 3) log.info msg
+            if (state?.loggingLevelIDE >= 3) log.info msg
             break
 
         case "debug":
-            if (state.loggingLevelIDE >= 4) log.debug msg
+            if (state?.loggingLevelIDE >= 4) log.debug msg
             break
 
         case "trace":
-            if (state.loggingLevelIDE >= 5) log.trace msg
+            if (state?.loggingLevelIDE >= 5) log.trace msg
             break
 
         default:
@@ -1588,14 +1547,14 @@ private sync(forceAll = false) {
     def syncPending = 0
 
     if (forceAll) { // Clear all cached values.
-        getParamsMd(state).findAll( {!it.readonly} ).each { state."paramCache${it.id}" = null }
+        getParamsMd().findAll( {!it.readonly} ).each { state."paramCache${it.id}" = null }
         getAssocGroupsMd().each { state."assocGroupCache${it.id}" = null }
         state.protectLocalCache = null
         state.protectRfCache = null
         state.switchAllModeCache = null
     }
 
-    getParamsMd(state).findAll( { !it.readonly & (it.fwVersion <= state.fwVersion) } ).each { // Exclude readonly/newer parameters.
+    getParamsMd().findAll( { !it.readonly } ).each { // Exclude readonly/newer parameters.
         if ( (state."paramTarget${it.id}" != null) & (state."paramCache${it.id}" != state."paramTarget${it.id}") ) {
             cmds << zwave.configurationV1.configurationSet(parameterNumber: it.id, size: it.size, scaledConfigurationValue: state."paramTarget${it.id}".toInteger())
             cmds << zwave.configurationV1.configurationGet(parameterNumber: it.id)
@@ -1656,7 +1615,7 @@ private updateSyncPending() {
 
     def syncPending = 0
 
-    getParamsMd(state).findAll( { !it.readonly & (it.fwVersion <= state.fwVersion) } ).each { // Exclude readonly/newer parameters.
+    getParamsMd().findAll( { !it.readonly } ).each { // Exclude readonly/newer parameters.
         if ( (state."paramTarget${it.id}" != null) & (state."paramCache${it.id}" != state."paramTarget${it.id}") ) {
             syncPending++
         }
@@ -1700,7 +1659,7 @@ private generatePrefsParams() {
                              "Refer to the product documentation for a full description of each parameter."
             )
 
-    getParamsMd(state).findAll( {!it.readonly} ).each { // Exclude readonly parameters.
+    getParamsMd().findAll( {!it.readonly} ).each { // Exclude readonly parameters.
         switch(it.type) {
             case "number":
             input (
@@ -1725,7 +1684,10 @@ private generatePrefsParams() {
             break
         }
     }
-        } // section
+        if (!isSupportedFirmware(4.28)) {
+          getBoolInput("emulateRestoreSwitchState", "Emulate power failure state to last known on/off state", false)
+        }
+  } // section
 }
 
 /**
@@ -1829,7 +1791,7 @@ private getCommandClassVersions() {
  *   readonly     If the parameter is readonly, then it will not be displayed by generatePrefsParams() or synced.
  *   isSigned     Indicates if the raw byte value represents a signed or unsigned number.
  **/
-private getParamsMd(state) {
+private getParamsMd() {
     def params = [
         // Firmware v4.22 onwards:
         [id:  0, size: 1, type: "number", range: "1..100", defaultValue: 10, required: false, readonly: false,
@@ -1847,7 +1809,7 @@ private getParamsMd(state) {
          name: "Wheel Status",
          description : "Indicates the position of the Room Colour Selector wheel."],
     ]
-    if (state?.fwVersion >= 4.28) {
+    if (isSupportedFirmware(4.28)) {
      // Firmware v4.28 onwards:
       params +=
         [id: 3, size: 1, type: "enum", defaultValue: "2", required: false, readonly: false,
@@ -1946,4 +1908,20 @@ private secureCmd(cmd) {
 	else {
 		return cmd.format()
 	}	
+}
+
+private isSupportedFirmware(minFirmware) {
+	def fw = device?.currentValue("firmwareVersion")
+    
+	return fw ? safeToDec(fw) >= minFirmware : false
+}
+
+private resultPossiblyForEndpoint(result, endpoint=0, endpointResult=[]) {
+    if (endPoint != 0) {
+	  def child = findChildByEndPoint(endPoint)
+      result.each { executeSendEvent(child, it) }
+      return endpointResult
+    } else {
+      return result
+    }
 }
