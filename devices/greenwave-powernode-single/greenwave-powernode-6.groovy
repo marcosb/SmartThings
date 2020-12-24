@@ -1,5 +1,5 @@
 /*****************************************************************************************************************
- *  Copyright: David Lomas (codersaur), Marcos B (marcosb)
+ *  Copyright: David Lomas (codersaur), Marcos Boyington (marcosb)
  *
  *  Name: GreenWave PowerNode (6 outlet) Advanced
  *
@@ -48,6 +48,7 @@ metadata {
         attribute "switch", "enum", ["on", "off"]
         attribute "power", "number"
         attribute "energy", "number"
+        attribute "latestValue", "enum", ["on", "off"]
 
         // Custom Attributes:
 		attribute "secondaryStatus", "string"
@@ -80,6 +81,7 @@ metadata {
 			attribute "ch${it}Power", "number"
 			attribute "ch${it}Switch", "string"
 			attribute "ch${it}Name", "string"
+			attribute "ch${it}LatestValue", "string"
 			command "ch${it}On"
 			command "ch${it}Off"
 		}
@@ -350,12 +352,12 @@ def createChildDevices() {
 }
 
 
-//'GreenWave PowerNode 6 Zooz Frankenstein VER 2.0 Child' name should match in child device handler
+//'GreenWave PowerNode 6 Advanced Child' name should match in child device handler
 private addChildOutlet(dni, endPoint) {
 	logger "Creating CH${endPoint} Child Device"
 	addChildDevice(
 		"getterdone", 
-		"GreenWave PowerNode 6 Zooz Frankenstein VER 2.0 Child", 
+		"GreenWave PowerNode 6 Advanced Child", 
 		dni, 
 		null, 
 		[
@@ -411,6 +413,8 @@ def ch6On() { childOn(getChildDeviceNetworkId(6)) }
 
 def childOn(dni) {
 	logger "childOn(${dni})..."
+	def endPoint = getEndPoint(dni)	
+    sendEvent(name: "ch${endPoint}LatestValue", value: "on", displayed: false)
 	sendCommands(getChildSwitchCmds(0xFF, dni))
 }
 
@@ -424,6 +428,8 @@ def ch6Off() { childOff(getChildDeviceNetworkId(6)) }
 
 def childOff(dni) {
 	logger "childOff(${dni})..."
+	def endPoint = getEndPoint(dni)
+    sendEvent(name: "ch${endPoint}LatestValue", value: "off", displayed: false)
 	sendCommands(getChildSwitchCmds(0x00, dni))
 }
 
@@ -502,6 +508,7 @@ def installed() {
     state.useCrc16 = true
     state.protectLocalTarget = 0
     state.protectRfTarget = 0
+    state.emulateRestoreSwitchState = false
 
     sendEvent(name: "fault", value: "clear", displayed: false)
     
@@ -713,16 +720,19 @@ def zwaveEvent(physicalgraph.zwave.commands.switchbinaryv1.SwitchBinaryReport cm
     def childResult = []
 
     if (endPoint!=0 && state.emulateRestoreSwitchState) {
-      def currentValue = getAttrVal("switch", findChildByEndPoint(endPoint))
-      if (currentValue != switchValue) {
+      def child = findChildByEndPoint(endPoint)
+      def currentValue = child.latestValue("latestValue")
+      if (currentValue && currentValue != switchValue) {
         logger("Switch ${endPoint} has unexpected state, resetting to known value: ${currentValue}","info")
         childResult << prepCommands([switchBinarySetCmd(currentValue == "on" ? 0xFF : 0x00, endPoint)])
       }
     }
-    def switchName =  (endpoint != 0) ? "ch${endPoint}Switch" : "switch"
+    def switchName = (endpoint != 0) ? "ch${endPoint}Switch" : "switch"
     def switchEvent = createEvent(name: switchName, value: switchValue)
-    if (switchEvent.isStateChange) logger("Switch turned ${switchValue}.","info")
+    if (switchEvent.isStateChange) logger("${switchName} turned ${switchValue}.","info")
     result << switchEvent
+    def latestValueName = (endpoint != 0) ? "ch${endPoint}LatestValue" : "latestValue"
+    result << createEvent(name: latestValueName, value: switchValue)
 
     return resultPossiblyForEndpoint(result, endpoint, childResult)
 }
@@ -1227,12 +1237,13 @@ def zwaveEvent(physicalgraph.zwave.commands.multichannelv3.MultiChannelCmdEncap 
  **/
 def on() {
     logger("on(): Turning switch on.","info")
-        sendCommands([
+    sendCommands([
         zwave.basicV1.basicSet(value: 0xFF).format(),
         zwave.switchBinaryV1.switchBinaryGet().format(),
         "delay 3000",
         zwave.meterV2.meterGet(scale: 2).format()
     ])
+    sendEvent(name: "latestValue", value: "on", displayed: false)
 }
 
 /**
@@ -1248,6 +1259,7 @@ def off() {
         "delay 3000",
         zwave.meterV2.meterGet(scale: 2).format()
     ])
+    sendEvent(name: "latestValue", value: "off", displayed: false)
 }
 
 /**
