@@ -51,8 +51,6 @@ metadata {
 		attribute "secondaryStatus", "string"
 		attribute "energyTime", "number"
 		attribute "energyDuration", "string"
-		attribute "powerLow", "number"
-		attribute "powerHigh", "number"
         attribute "switch", "enum", ["on", "off", "poweringOn", "poweringOff"]
         attribute "latestValue", "enum", ["on", "off"]
 				
@@ -78,12 +76,6 @@ metadata {
 		}
 		valueTile("power", "device.power", width: 2, height: 2) {
 			state "power", label:'${currentValue} W', backgroundColor: "#cccccc"
-		}
-		valueTile("powerHigh", "device.powerHigh", width: 2, height: 1, decoration:"flat") {
-			state "powerHigh", label:'High: ${currentValue} W'
-		}
-		valueTile("powerLow", "device.powerLow", width: 2, height: 1, decoration:"flat") {
-			state "powerLow", label:'Low: ${currentValue} W'
 		}
 		standardTile("refresh", "device.refresh", width: 2, height: 2) {
 			state "default", label:'Refresh', action: "refresh", icon:"st.secondary.refresh-icon"
