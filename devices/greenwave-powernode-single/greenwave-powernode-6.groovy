@@ -379,7 +379,7 @@ private getAllSwitchCmds(value) {
 		}
 	}
 	else {
-		cmds += getChildSwitchCmds(value, null)
+		cmds += getChildSwitchCmds(value, 0)
 		cmds << "delay 2000"
 		(6..1).each { endPoint ->
 			cmds << "delay 2000"
@@ -411,7 +411,7 @@ def childOn(dni) {
 	logger "childOn(${dni})..."
 
     findChildByEndPoint(getEndPoint(dni)).sendEvent(name: "latestValue", value: "on", displayed: false)
-	sendCommands(getChildSwitchCmds(0xFF, dni))
+	sendCommands(getChildSwitchCmds(0xFF, getEndPoint(dni)))
 }
 
 
@@ -425,11 +425,10 @@ def ch6Off() { childOff(getChildDeviceNetworkId(6)) }
 def childOff(dni) {
 	logger "childOff(${dni})..."
     findChildByEndPoint(getEndPoint(dni)).sendEvent(name: "latestValue", value: "off", displayed: false)
-	sendCommands(getChildSwitchCmds(0x00, dni))
+	sendCommands(getChildSwitchCmds(0x00, getEndPoint(dni)))
 }
 
-private getChildSwitchCmds(value, dni) {
-	def endPoint = getEndPoint(dni)	
+private getChildSwitchCmds(value, endPoint) {
 	return [
 		switchBinarySetCmd(value, endPoint),
 		switchBinaryGetCmd(endPoint),
@@ -635,7 +634,7 @@ def zwaveEvent(physicalgraph.zwave.commands.basicv1.BasicReport cmd, endPoint=0)
 
     def switchValue = (cmd.value ? "on" : "off")
     def switchEvent = createEvent(name: "switch", value: switchValue)
-    if (switchEvent.isStateChange) logger("Switch turned ${switchValue}.","info")
+    if (switchEvent.isStateChange) logger("Basic report, switch turned ${switchValue}.","info")
     result << switchEvent
     
     return resultPossiblyForEndpoint(result, endPoint)
@@ -714,18 +713,27 @@ def zwaveEvent(physicalgraph.zwave.commands.switchbinaryv1.SwitchBinaryReport cm
     def result = []
     def childResult = []
 
-    if (endPoint!=0 && state.emulateRestoreSwitchState) {
-      def child = findChildByEndPoint(endPoint)
-      def currentValue = child.latestValue("latestValue")
-      if (currentValue && currentValue != switchValue) {
-        logger("Switch ${endPoint} has unexpected state, resetting to known value: ${currentValue}","info")
-        childResult << prepCommands([switchBinarySetCmd(currentValue == "on" ? 0xFF : 0x00, endPoint)])
-      }
+    if (state.emulateRestoreSwitchState) {
+        if (endPoint!=0) {
+          def child = findChildByEndPoint(endPoint)
+          def currentValue = getAttrVal("latestValue", child)
+          if (currentValue && currentValue != switchValue) {
+            logger("Switch ${endPoint} has unexpected state, resetting to known value: ${currentValue}","info")
+            childResult << prepCommands(getChildSwitchCmds(currentValue == "on" ? 0xFF : 0x00, endPoint))
+          }
+        } else {
+          def currentValue = getAttrVal("latestValue")
+          if (currentValue && currentValue != switchValue) {
+            logger("Switch has unexpected state, resetting to known value: ${currentValue}","info")
+            result << prepCommands(getSwitchCommands(currentValue == "on" ? 0xFF : 0x00))
+          }
+        }
     }
-    def switchEvent = createEvent(name: "switch", value: switchValue)
+    def switchEvent = (endPoint!=0)
+        ? createEvent(name: "switch", value: switchValue)
+        : findChildByEndPoint(endPoint).createEvent(name: "switch", value: switchValue)
     if (switchEvent.isStateChange) logger("ch${endPoint}Switch turned ${switchValue}.","info")
     result << switchEvent
-    result << createEvent(name: "latestValue", value: switchValue)
 
     return resultPossiblyForEndpoint(result, endPoint, childResult)
 }
@@ -829,13 +837,15 @@ def zwaveEvent(physicalgraph.zwave.commands.meterv3.MeterReport cmd, endPoint=0)
                 case 2:  // Instantaneous Power (Watts):
                     result << createEvent(name: "power", value: cmd.scaledMeterValue, unit: "W", displayed: true)
                     result << createEvent(name: "dispPower", value: String.format("%.1f",cmd.scaledMeterValue as BigDecimal) + " W", displayed: false)
-                    logger("New meter reading: Instantaneous Power: ${cmd.scaledMeterValue} W","info")
+                    logger("New meter reading for ch${endPoint}: Instantaneous Power: ${cmd.scaledMeterValue} W","info")
 
                     // Request Switch Binary Report if power suggests switch state has changed:
                     def sw = (cmd.scaledMeterValue) ? "on" : "off"
-                    if (endpoint != 0 && getAttrVal("switch", findChildByEndPoint(endPoint)) != sw) {
+                    if (endPoint != 0 && getAttrVal("switch", findChildByEndPoint(endPoint)) != sw) {
+                      logger("Stale value for ch${endPoint}: ${sw}","info")
                       childResult << prepCommands([switchBinaryGetCmd(endPoint)])
                     } else if (endPoint == 0 && device.latestValue("switch") != sw) {
+                      logger("Stale value: ${sw}","info")
                       result << prepCommands([zwave.switchBinaryV1.switchBinaryGet()])
                     }
                     break
@@ -1162,8 +1172,8 @@ def zwaveEvent(physicalgraph.zwave.commands.versionv1.VersionReport cmd) {
     def applicationVersionDisp = String.format("%d.%02d",cmd.applicationVersion,cmd.applicationSubVersion)
     def zWaveProtocolVersionDisp = String.format("%d.%02d",cmd.zWaveProtocolVersion,cmd.zWaveProtocolSubVersion)
 
-    if (version != device.currentValue("firmwareVersion")) {
-		logger("Firmware: ${version}", "info")
+    if (applicationVersionDisp != device.currentValue("firmwareVersion")) {
+		logger("Firmware: ${applicationVersionDisp}", "info")
 		sendEvent(name: "firmwareVersion", value: applicationVersionDisp, displayed:false)
 	}
 
@@ -1222,6 +1232,14 @@ def zwaveEvent(physicalgraph.zwave.commands.multichannelv3.MultiChannelCmdEncap 
 /*****************************************************************************************************************
  *  Capability-related Commands:
  *****************************************************************************************************************/
+private getSwitchCommands(value) {
+  return [
+        zwave.basicV1.basicSet(value: value).format(),
+        zwave.switchBinaryV1.switchBinaryGet().format(),
+        "delay 3000",
+        zwave.meterV2.meterGet(scale: 2).format()
+    ]
+}
 
 /**
  *  on()                        [Capability: Switch]
@@ -1231,12 +1249,7 @@ def zwaveEvent(physicalgraph.zwave.commands.multichannelv3.MultiChannelCmdEncap 
 def on() {
     logger("on(): Turning switch on.","info")
     sendEvent(name: "latestValue", value: "on", displayed: false)
-    sendCommands([
-        zwave.basicV1.basicSet(value: 0xFF).format(),
-        zwave.switchBinaryV1.switchBinaryGet().format(),
-        "delay 3000",
-        zwave.meterV2.meterGet(scale: 2).format()
-    ])
+    sendCommands(getSwitchCommands(0xFF))
 }
 
 /**
@@ -1247,12 +1260,7 @@ def on() {
 def off() {
     logger("off(): Turning switch off.","info")
     sendEvent(name: "latestValue", value: "off", displayed: false)
-    sendCommands([
-        zwave.basicV1.basicSet(value: 0x00).format(),
-        zwave.switchBinaryV1.switchBinaryGet().format(),
-        "delay 3000",
-        zwave.meterV2.meterGet(scale: 2).format()
-    ])
+    sendCommands(getSwitchCommands(0x00))
 }
 
 /**
