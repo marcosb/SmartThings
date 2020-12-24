@@ -45,7 +45,7 @@ metadata {
         //capability "Protection"
 
         // Standard Attributes:
-        attribute "switch", "enum", ["on", "off"]
+        attribute "switch", "enum", ["on", "off", "poweringOn", "poweringOff"]
         attribute "power", "number"
         attribute "energy", "number"
         attribute "latestValue", "enum", ["on", "off"]
@@ -78,10 +78,7 @@ metadata {
         command "test"                      // Test function.
         
 		(1..6).each {
-			attribute "ch${it}Power", "number"
-			attribute "ch${it}Switch", "string"
 			attribute "ch${it}Name", "string"
-			attribute "ch${it}LatestValue", "string"
 			command "ch${it}On"
 			command "ch${it}Off"
 		}
@@ -93,12 +90,12 @@ metadata {
     tiles(scale: 2) {
         // Multi Tile:
         multiAttributeTile(name:"switch", type: "generic", width: 6, height: 4, canChangeIcon: true) {
-            tileAttribute ("switch", key: "PRIMARY_CONTROL") {
-                attributeState "on", label:'${name}', action:"off", icon:"st.switches.switch.on", backgroundColor:"#79b821", nextState:"turningOff"
-                attributeState "off", label:'${name}', action:"on", icon:"st.switches.switch.off", backgroundColor:"#ffffff", nextState:"turningOn"
-                attributeState "turningOn", label:'${name}', action:"off", icon:"st.switches.switch.on", backgroundColor:"#79b821", nextState:"turningOff"
-                attributeState "turningOff", label:'${name}', action:"on", icon:"st.switches.switch.off", backgroundColor:"#ffffff", nextState:"turningOn"
-            }
+            tileAttribute ("device.switch", key: "PRIMARY_CONTROL") {
+                attributeState "on", label:'${name}', action:"switch.off", icon:"st.switches.switch.on", backgroundColor:"#79b821", nextState:"turningOff"
+                attributeState "off", label:'${name}', action:"switch.on", icon:"st.switches.switch.off", backgroundColor:"#ffffff", nextState:"turningOn"
+                attributeState "turningOn", label:'Turning on', icon:"st.switches.switch.on", backgroundColor:"#79b821", nextState:"turningOff"
+                attributeState "turningOff", label:'Turning off', icon:"st.switches.switch.off", backgroundColor:"#ffffff", nextState:"turningOn"
+	        }
 			tileAttribute ("device.secondaryStatus", key: "SECONDARY_CONTROL") {
 				attributeState "default", label:'${currentValue}'
 			}
@@ -261,7 +258,6 @@ private getDetailsTiles() {
         ]
 	(1..6).each {
 		tiles << "ch${it}Name"
-		tiles << "ch${it}Power"
 		tiles << "ch${it}Switch"
 	}
     
@@ -413,8 +409,8 @@ def ch6On() { childOn(getChildDeviceNetworkId(6)) }
 
 def childOn(dni) {
 	logger "childOn(${dni})..."
-	def endPoint = getEndPoint(dni)	
-    sendEvent(name: "ch${endPoint}LatestValue", value: "on", displayed: false)
+
+    findChildByEndPoint(getEndPoint(dni)).sendEvent(name: "latestValue", value: "on", displayed: false)
 	sendCommands(getChildSwitchCmds(0xFF, dni))
 }
 
@@ -428,8 +424,7 @@ def ch6Off() { childOff(getChildDeviceNetworkId(6)) }
 
 def childOff(dni) {
 	logger "childOff(${dni})..."
-	def endPoint = getEndPoint(dni)
-    sendEvent(name: "ch${endPoint}LatestValue", value: "off", displayed: false)
+    findChildByEndPoint(getEndPoint(dni)).sendEvent(name: "latestValue", value: "off", displayed: false)
 	sendCommands(getChildSwitchCmds(0x00, dni))
 }
 
@@ -478,7 +473,7 @@ def updateSecondaryStatus() {
 			duration = " - ${duration}"
 		}
 		
-		def status = "${status}${power} ${meterPower.unit} / ${energy} ${meterEnergy.unit}${duration}"
+		def status = "${power} ${meterPower.unit} / ${energy} ${meterEnergy.unit}${duration}"
 		
 		if (getAttrVal("secondaryStatus", child) != "${status}") {
 			executeSendEvent(child, createEvent(name: "secondaryStatus", value: status, displayed: false))
@@ -508,7 +503,7 @@ def installed() {
     state.useCrc16 = true
     state.protectLocalTarget = 0
     state.protectRfTarget = 0
-    state.emulateRestoreSwitchState = false
+    state.emulateRestoreSwitchState = true
 
     sendEvent(name: "fault", value: "clear", displayed: false)
     
@@ -643,7 +638,7 @@ def zwaveEvent(physicalgraph.zwave.commands.basicv1.BasicReport cmd, endPoint=0)
     if (switchEvent.isStateChange) logger("Switch turned ${switchValue}.","info")
     result << switchEvent
     
-    return resultPossiblyForEndpoint(result, endpoint)
+    return resultPossiblyForEndpoint(result, endPoint)
 }
 
 /**
@@ -727,14 +722,12 @@ def zwaveEvent(physicalgraph.zwave.commands.switchbinaryv1.SwitchBinaryReport cm
         childResult << prepCommands([switchBinarySetCmd(currentValue == "on" ? 0xFF : 0x00, endPoint)])
       }
     }
-    def switchName = (endpoint != 0) ? "ch${endPoint}Switch" : "switch"
-    def switchEvent = createEvent(name: switchName, value: switchValue)
-    if (switchEvent.isStateChange) logger("${switchName} turned ${switchValue}.","info")
+    def switchEvent = createEvent(name: "switch", value: switchValue)
+    if (switchEvent.isStateChange) logger("ch${endPoint}Switch turned ${switchValue}.","info")
     result << switchEvent
-    def latestValueName = (endpoint != 0) ? "ch${endPoint}LatestValue" : "latestValue"
-    result << createEvent(name: latestValueName, value: switchValue)
+    result << createEvent(name: "latestValue", value: switchValue)
 
-    return resultPossiblyForEndpoint(result, endpoint, childResult)
+    return resultPossiblyForEndpoint(result, endPoint, childResult)
 }
 
 /**
@@ -883,7 +876,7 @@ def zwaveEvent(physicalgraph.zwave.commands.meterv3.MeterReport cmd, endPoint=0)
     
 	runIn(2, updateSecondaryStatus)
 
-    return resultPossiblyForEndpoint(result, endpoint, childResult)
+    return resultPossiblyForEndpoint(result, endPoint, childResult)
 }
 
 /**
@@ -1237,13 +1230,13 @@ def zwaveEvent(physicalgraph.zwave.commands.multichannelv3.MultiChannelCmdEncap 
  **/
 def on() {
     logger("on(): Turning switch on.","info")
+    sendEvent(name: "latestValue", value: "on", displayed: false)
     sendCommands([
         zwave.basicV1.basicSet(value: 0xFF).format(),
         zwave.switchBinaryV1.switchBinaryGet().format(),
         "delay 3000",
         zwave.meterV2.meterGet(scale: 2).format()
     ])
-    sendEvent(name: "latestValue", value: "on", displayed: false)
 }
 
 /**
@@ -1253,13 +1246,13 @@ def on() {
  **/
 def off() {
     logger("off(): Turning switch off.","info")
+    sendEvent(name: "latestValue", value: "off", displayed: false)
     sendCommands([
         zwave.basicV1.basicSet(value: 0x00).format(),
         zwave.switchBinaryV1.switchBinaryGet().format(),
         "delay 3000",
         zwave.meterV2.meterGet(scale: 2).format()
     ])
-    sendEvent(name: "latestValue", value: "off", displayed: false)
 }
 
 /**
@@ -1928,7 +1921,7 @@ private isSupportedFirmware(minFirmware) {
 	return fw ? safeToDec(fw) >= minFirmware : false
 }
 
-private resultPossiblyForEndpoint(result, endpoint=0, endpointResult=[]) {
+private resultPossiblyForEndpoint(result, endPoint=0, endpointResult=[]) {
     if (endPoint != 0) {
 	  def child = findChildByEndPoint(endPoint)
       result.each { executeSendEvent(child, it) }
