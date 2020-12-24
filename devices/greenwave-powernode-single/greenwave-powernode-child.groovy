@@ -53,7 +53,7 @@ metadata {
 		attribute "energyDuration", "string"
 		attribute "powerLow", "number"
 		attribute "powerHigh", "number"
-        attribute "switch", "enum", ["on", "off"]
+        attribute "switch", "enum", ["on", "off", "poweringOn", "poweringOff"]
         attribute "latestValue", "enum", ["on", "off"]
 				
 		command "reset"
@@ -64,10 +64,10 @@ metadata {
 	tiles(scale: 2) {
 		multiAttributeTile(name:"switch", type: "generic", width: 6, height: 4, canChangeIcon: true){
 			tileAttribute ("device.switch", key: "PRIMARY_CONTROL") {
-                attributeState "on", label:'${name}', action:"off", icon:"st.switches.switch.on", backgroundColor:"#79b821", nextState:"turningOff"
-                attributeState "off", label:'${name}', action:"on", icon:"st.switches.switch.off", backgroundColor:"#ffffff", nextState:"turningOn"
-                attributeState "turningOn", label:'${name}', action:"off", icon:"st.switches.switch.on", backgroundColor:"#79b821", nextState:"turningOff"
-                attributeState "turningOff", label:'${name}', action:"on", icon:"st.switches.switch.off", backgroundColor:"#ffffff", nextState:"turningOn"
+                attributeState "on", label:'${name}', action:"switch.off", icon:"st.switches.switch.on", backgroundColor:"#79b821", nextState:"turningOff"
+                attributeState "off", label:'${name}', action:"switch.on", icon:"st.switches.switch.off", backgroundColor:"#ffffff", nextState:"turningOn"
+                attributeState "turningOn", label:'Turning on', icon:"st.switches.switch.on", backgroundColor:"#79b821", nextState:"turningOff"
+                attributeState "turningOff", label:'Turning off', icon:"st.switches.switch.off", backgroundColor:"#ffffff", nextState:"turningOn"
 			}
 			tileAttribute ("device.secondaryStatus", key: "SECONDARY_CONTROL") {
 				attributeState "default", label:'${currentValue}'
