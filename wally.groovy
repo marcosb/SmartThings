@@ -1,7 +1,7 @@
 /**
  *  Wally Sensor
  *
- *  Copyright 2021 Marcos B
+ *  Copyright 2021 Marcos Boyington
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -206,6 +206,7 @@ def parse(String description) {
     // Any report - temp, humidity & battery - results in a lastCheckin event and update to Last Checkin tile
     // However, only a non-parseable report results in lastCheckin being displayed in events log
     result << createEvent(name: "lastCheckin", value: now, displayed: !parsed)
+    result << createEvent(name: "lastCheckinDate", value: nowDate, displayed: false)
 
     if (map) {
         result << createEvent(map)
@@ -303,7 +304,7 @@ private Map getWaterMap(ZoneStatus zs) {
 private Map getContactResult(ZoneStatus zs) {
     def value = zs.isAlarm1Set() || zs.isAlarm2Set()
 
-    log.debug 'Contact Status ${zs}'
+    log.debug "Contact Status ${zs}"
     def linkText = getLinkText(device)
     def descriptionText = "${linkText} was ${value ? 'opened' : 'closed'}"
     return [
