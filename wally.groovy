@@ -30,12 +30,11 @@ metadata {
 
     attribute "lastCheckin", "String"
     attribute "lastCheckinDate", "String"
-    attribute "maxTemp", "number"
-    attribute "minTemp", "number"
-    attribute "maxHumidity", "number"
-    attribute "minHumidity", "number"
+    attribute "lastWet", "String"
+    attribute "lastWetDate", "Date"
+    attribute "lastOpened", "String"
+    attribute "lastOpenedDate", "Date"
     attribute "unknownStatusReport", "String"
-    attribute "currentDay", "String"
 
     command "enrollResponse"
 
@@ -142,8 +141,16 @@ def parse(String description) {
         map.value = humidOffset ? (int) map.value + (int) humidOffset : (int) map.value
     } else if (description?.startsWith('zone status')) {
         map = parseIasMessage(description)
+        if (map.value == "open") {
+            result << createEvent(name: "lastOpened", value: now, displayed: false)
+            result << createEvent(name: "lastOpenedDate", value: nowDate, displayed: false)
+        }
     } else if (zigbee.isZoneType19(description)) {
         map = getWaterMap(new ZoneStatus(zigbee.translateStatusZoneType19(description) ? 0x1 : 0x0))
+        if (map.value == "wet") {
+            result << createEvent(name: "lastWet", value: now, displayed: false)
+            result << createEvent(name: "lastWetDate", value: nowDate, displayed: false)
+        }
     } else {
         Map descMap = zigbee.parseDescriptionAsMap(description)
         log.debug "${device.displayName}: Parsed as map ${descMap}"
@@ -174,8 +181,16 @@ def parse(String description) {
             def zs = new ZoneStatus(zigbee.convertToInt(descMap.value, 16))
             if (descMap.sourceEndpoint == "02") {
                 map = getWaterMap(zs)
+                if (map.value == "wet") {
+                    result << createEvent(name: "lastWet", value: now, displayed: false)
+                    result << createEvent(name: "lastWetDate", value: nowDate, displayed: false)
+                }
             } else if (descMap.sourceEndpoint == "01") {
                 map = getContactResult(zs)
+                if (map.value == "open") {
+                    result << createEvent(name: "lastOpened", value: now, displayed: false)
+                    result << createEvent(name: "lastOpenedDate", value: nowDate, displayed: false)
+                }
             } else {
                 log.debug "${device.displayName}: unknown map"
                 result << createEvent(name: "unknownStatusReport", value: "IAS Map: ${descMap}", displayed: false)
