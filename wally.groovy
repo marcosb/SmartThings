@@ -1,7 +1,7 @@
 /**
  *  Wally Sensor
  *
- *  Copyright 2021 Marcos Boyington
+ *  Copyright 2021 Marcos B
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -36,7 +36,6 @@ metadata {
     attribute "minHumidity", "number"
     attribute "unknownStatusReport", "String"
     attribute "currentDay", "String"
-    attribute "batteryRuntime", "String"
 
     command "enrollResponse"
 
@@ -103,11 +102,8 @@ metadata {
         valueTile("lastcheckin", "device.lastCheckin", inactiveLabel: false, decoration: "flat", width: 4, height: 1) {
             state "lastcheckin", label: 'Last Event:\n ${currentValue}'
         }
-        valueTile("batteryRuntime", "device.batteryRuntime", inactiveLabel: false, decoration: "flat", width: 4, height: 1) {
-            state "batteryRuntime", label: 'Battery Changed: ${currentValue}'
-        }
         main("temperature")
-        details(["temperature", "battery", "humidity", "lastcheckin", "batteryRuntime"])
+        details(["temperature", "battery", "humidity", "lastcheckin"])
     }
     preferences {
         //Date & Time Config
