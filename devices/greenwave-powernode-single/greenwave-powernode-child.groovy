@@ -35,8 +35,8 @@ metadata {
 
 	definition (
 		name: "GreenWave PowerNode 6 Advanced Child", 
-		namespace: "getterdone", 
-		author: "Ulices Soriano",
+		namespace: "marcosb", 
+		author: "Marcos B",
 		vid:"generic-switch-power-energy"
 	) {
 		capability "Actuator"
