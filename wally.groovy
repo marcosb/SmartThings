@@ -3,6 +3,9 @@
  *
  *  Copyright 2021 Marcos B
  *
+ *  Sources: https://github.com/Koenkk/zigbee-herdsman-converters/blob/master/devices.js
+ *      https://github.com/Calamitious/SmartThingsPublic/blob/master/devicetypes/smartthings/smartsense-temp-humidity-sensor.src/smartsense-temp-humidity-sensor.groovy
+ *  
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
  *
