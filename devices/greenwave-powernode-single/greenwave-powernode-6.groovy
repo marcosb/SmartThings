@@ -1,5 +1,5 @@
 /*****************************************************************************************************************
- *  Copyright: David Lomas (codersaur), Marcos Boyington (marcosb)
+ *  Copyright: David Lomas (codersaur), Marcos B (marcosb)
  *
  *  Name: GreenWave PowerNode (6 outlet) Advanced
  *
@@ -30,7 +30,7 @@
  *
  *****************************************************************************************************************/
 metadata {
-    definition (name: "GreenWave PowerNode 6 Advanced", namespace: "codersaur", author: "David Lomas") {
+    definition (name: "GreenWave PowerNode 6 Advanced", namespace: "marcosb", author: "Marcos B") {
         capability "Actuator"
         capability "Switch"
         capability "Sensor"
@@ -505,6 +505,7 @@ def installed() {
     state.emulateRestoreSwitchState = true
 
     sendEvent(name: "fault", value: "clear", displayed: false)
+    sendEvent(name: "checkInterval", value: 12 * 60, displayed: false, data: [protocol: "zwave", hubHardwareId: device.hub.hardwareID])
     
     if (childDevices?.size() != 6) {
         cmds += createChildDevices()
@@ -543,6 +544,8 @@ def updated() {
 
     if (!state.updatedLastRanAt || now() >= state.updatedLastRanAt + 2000) {
         state.updatedLastRanAt = now()
+        
+        sendEvent(name: "checkInterval", value: 12 * 60, displayed: false, data: [protocol: "zwave", hubHardwareId: device.hub.hardwareID])
 
         // Update internal state:
         state.loggingLevelIDE     = (settings.configLoggingLevelIDE) ? settings.configLoggingLevelIDE.toInteger() : 3
@@ -594,7 +597,7 @@ def updated() {
  *   String      description        The raw message from the device.
  **/
 def parse(description) {
-    logger("parse(): Parsing raw message: ${description}","trace")
+    logger("parse(): Parsing raw message: ${description}","info")
 
     def result = []
 
