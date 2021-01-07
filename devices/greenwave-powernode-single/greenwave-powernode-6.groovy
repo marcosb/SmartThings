@@ -352,7 +352,7 @@ def createChildDevices() {
 private addChildOutlet(dni, endPoint) {
 	logger "Creating CH${endPoint} Child Device"
 	addChildDevice(
-		"getterdone", 
+		"marcosb", 
 		"GreenWave PowerNode 6 Advanced Child", 
 		dni, 
 		null, 
