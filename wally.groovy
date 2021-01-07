@@ -1,7 +1,7 @@
 /**
  *  Wally Sensor
  *
- *  Copyright 2021 Marcos Boyington
+ *  Copyright 2021 Marcos B
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -17,7 +17,7 @@ import physicalgraph.zigbee.clusters.iaszone.ZoneStatus
 import physicalgraph.zigbee.zcl.DataType
 
 metadata {
-    definition(name: "Wally Sensor", namespace: "marcosb", author: "Marcos Boyington", cstHandler: true) {
+    definition(name: "Wally Sensor", namespace: "marcosb", author: "Marcos B", cstHandler: true) {
         capability "Battery"
         capability "Temperature Measurement"
         capability "Water Sensor"
@@ -151,6 +151,8 @@ def parse(String description) {
             result << createEvent(name: "lastWet", value: now, displayed: false)
             result << createEvent(name: "lastWetDate", value: nowDate, displayed: false)
         }
+        // Water sensor needs refresh to get current state
+        getRefreshCmds().each { result << new physicalgraph.device.HubAction(it) }
     } else {
         Map descMap = zigbee.parseDescriptionAsMap(description)
         log.debug "${device.displayName}: Parsed as map ${descMap}"
@@ -177,7 +179,7 @@ def parse(String description) {
                 result << createEvent(name: "unknownStatusReport", value: "Temperature map: ${descMap}", displayed: false)
                 parsed = false
             }
-        } else if (descMap?.clusterInt == zigbee.IAS_ZONE_CLUSTER) {
+        } else if (descMap?.clusterInt == zigbee.IAS_ZONE_CLUSTER && descMap.value) {
             def zs = new ZoneStatus(zigbee.convertToInt(descMap.value, 16))
             if (descMap.sourceEndpoint == "02") {
                 map = getWaterMap(zs)
@@ -216,7 +218,7 @@ def parse(String description) {
     if (description?.startsWith('enroll request')) {
         List cmds = enrollResponse()
         log.debug "enroll response: ${cmds}"
-        result = cmds?.each { result << new physicalgraph.device.HubAction(it) }
+        cmds?.each { result << new physicalgraph.device.HubAction(it) }
     }
     return result
 }
@@ -230,14 +232,7 @@ def ping() {
 
 def refresh() {
     log.debug "Refreshing Values"
-    def refreshCmds = []
-
-    refreshCmds += zigbee.readAttribute(zigbee.POWER_CONFIGURATION_CLUSTER, 0x0020) +
-            zigbee.readAttribute(zigbee.RELATIVE_HUMIDITY_CLUSTER, 0x0000) +
-            zigbee.readAttribute(zigbee.TEMPERATURE_MEASUREMENT_CLUSTER, 0x0000) +
-            zigbee.readAttribute(0x0003, 0x0000) +
-            zigbee.readAttribute(zigbee.IAS_ZONE_CLUSTER, zigbee.ATTRIBUTE_IAS_ZONE_STATUS, [destEndpoint: 0x01]) +
-            zigbee.readAttribute(zigbee.IAS_ZONE_CLUSTER, zigbee.ATTRIBUTE_IAS_ZONE_STATUS, [destEndpoint: 0x02])
+    def refreshCmds = getRefreshCmds()
 
     log.debug "Refresh Commands: ${refreshCmds}"
     return refreshCmds + enrollResponse()
@@ -269,6 +264,15 @@ def configure() {
 def enrollResponse() {
     log.debug "Sending enroll response"
     [] + zigbee.enrollResponse()
+}
+
+private getRefreshCmds() {
+    return [] + zigbee.readAttribute(zigbee.POWER_CONFIGURATION_CLUSTER, 0x0020) +
+    zigbee.readAttribute(zigbee.RELATIVE_HUMIDITY_CLUSTER, 0x0000) +
+    zigbee.readAttribute(zigbee.TEMPERATURE_MEASUREMENT_CLUSTER, 0x0000) +
+    zigbee.readAttribute(0x0003, 0x0000) +
+    zigbee.readAttribute(zigbee.IAS_ZONE_CLUSTER, zigbee.ATTRIBUTE_IAS_ZONE_STATUS, [destEndpoint: 0x01]) +
+    zigbee.readAttribute(zigbee.IAS_ZONE_CLUSTER, zigbee.ATTRIBUTE_IAS_ZONE_STATUS, [destEndpoint: 0x02])
 }
 
 private Map parseIasMessage(String description) {
@@ -304,7 +308,7 @@ private Map getWaterMap(ZoneStatus zs) {
 private Map getContactResult(ZoneStatus zs) {
     def value = zs.isAlarm1Set() || zs.isAlarm2Set()
 
-    log.debug "Contact Status ${zs}"
+    log.debug "Contact Status ${value}"
     def linkText = getLinkText(device)
     def descriptionText = "${linkText} was ${value ? 'opened' : 'closed'}"
     return [
