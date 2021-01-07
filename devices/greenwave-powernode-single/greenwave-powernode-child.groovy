@@ -1,8 +1,8 @@
 /**
- *  GreenWave PowerNode 6 Zooz Frankenstein VER 2.0 (CHILD DEVICE)
+ *  GreenWave PowerNode 6 Advanced (CHILD DEVICE)
  *
  *  Author: 
- *    Kevin LaFramboise (krlaframboise),  Ulices Soriano (getterdone) tweaked for Greenwave
+ *    Kevin LaFramboise (krlaframboise),  Ulices Soriano (getterdone) tweaked for Greenwave, Marcos B (marcosb) additional GeenWave improvemens
  *
  *  Changelog:
  *
@@ -30,7 +30,7 @@
 
 metadata {
 	// Automatically generated. Make future change here.
-	definition (name: "GreenWave PowerNode 6 Advanced Child", namespace: "getterdone", author: "Ulices Soriano", cstHandler: true) {
+	definition (name: "GreenWave PowerNode 6 Advanced Child", namespace: "marcosb", author: "Marcos B", cstHandler: true) {
 	}
 
 	definition (
